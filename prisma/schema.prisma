@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  STAFF
+  CLIENT
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum UrgencyLevel {
+  STANDARD
+  PRIORITY
+  IMMEDIATE
+}
+
+enum NotificationType {
+  CONFIRMED
+  RESCHEDULED
+  CANCELLED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id // Clerk user ID
+  email         String         @unique
+  name          String
+  role          Role           @default(CLIENT)
+  appointments  Appointment[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Service {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  durationMin  Int           // minutes per appointment
+  isActive     Boolean       @default(true)
+  appointments Appointment[]
+  schedules    Schedule[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+// Available time blocks for a service (per day-of-week)
+model Schedule {
+  id        String   @id @default(cuid())
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  dayOfWeek Int      // 0 = Sunday … 6 = Saturday
+  startTime String   // "09:00"
+  endTime   String   // "17:00"
+  isActive  Boolean  @default(true)
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  serviceId     String
+  service       Service           @relation(fields: [serviceId], references: [id])
+  scheduledAt   DateTime          // when the appointment is booked for
+  status        AppointmentStatus @default(PENDING)
+  queuePosition Int?              // set by the Python optimizer
+  notes         String?
+  honeyVariety  String?
+  quantity      Int?
+  urgencyLevel  UrgencyLevel      @default(STANDARD)
+  apiarySource  String?
+  adminNotes    String?
+  notifications Notification[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  appointmentId String?
+  appointment   Appointment?     @relation(fields: [appointmentId], references: [id])
+  type          NotificationType
+  message       String
+  read          Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+}
