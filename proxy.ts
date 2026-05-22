@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 
 const isPublicRoute = createRouteMatcher(['/', '/api/optimize(.*)']);
 
-export default clerkMiddleware(async (auth, req) => {
+export default clerkMiddleware(
+  async (auth, req) => {
   const { userId } = await auth();
   const { pathname } = req.nextUrl;
 
@@ -12,7 +13,12 @@ export default clerkMiddleware(async (auth, req) => {
 
     // Redirect away from login page once authenticated
     if (pathname === '/') {
-      return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/client', req.url));
+      return NextResponse.redirect(new URL(isAdmin ? '/admin/scheduler' : '/client', req.url));
+    }
+
+    // Redirect /admin exact to /admin/scheduler (skip layout double-render)
+    if (pathname === '/admin') {
+      return NextResponse.redirect(new URL('/admin/scheduler', req.url));
     }
 
     // Block non-admins from /admin
@@ -25,7 +31,9 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(new URL('/', req.url));
     }
   }
-});
+},
+{ clockSkewInMs: 15000 },
+);
 
 export const config = {
   matcher: [

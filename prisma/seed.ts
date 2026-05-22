@@ -1,0 +1,201 @@
+import 'dotenv/config';
+import { PrismaClient, UrgencyLevel } from '../generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const url = new URL(process.env.DATABASE_URL!);
+url.searchParams.set('sslmode', 'verify-full');
+const adapter = new PrismaPg({ connectionString: url.toString() });
+const prisma = new PrismaClient({ adapter });
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
+const CLIENTS = [
+  { id: 'seed_user_mgh2k9x1', name: 'Marcos Gutiérrez', email: 'marcos.gutierrez@apicultores.ar' },
+  { id: 'seed_user_lva5p3w8', name: 'Laura Vázquez',    email: 'lvazquez@colmenares.com' },
+  { id: 'seed_user_rfe7j2n4', name: 'Ricardo Ferreyra', email: 'r.ferreyra@mieldelsuelo.ar' },
+  { id: 'seed_user_abn1q6t5', name: 'Ana Belén Nieto',  email: 'anieto@apicampo.com.ar' },
+  { id: 'seed_user_crs4d8y0', name: 'Carlos Ruiz Sosa', email: 'cruizsosa@gmail.com' },
+  { id: 'seed_user_pml3h7z6', name: 'Patricia Molina',  email: 'pmolina@estanciaelmonte.ar' },
+  { id: 'seed_user_joa9w5k2', name: 'Jorge Olivares',   email: 'jolivares@colmenasur.com' },
+  { id: 'seed_user_sbd6f1c3', name: 'Sofía Bravo',      email: 'sbravo@mielpatagonico.ar' },
+  { id: 'seed_user_ehr8m4v7', name: 'Eduardo Herrera',  email: 'eherrera@apitucu.com' },
+  { id: 'seed_user_fna0q9r5', name: 'Florencia Nadal',  email: 'fnadal@colmenareal.com.ar' },
+];
+
+const APIARIES = [
+  'Apiario La Esperanza — Córdoba',
+  'Estancia El Monte — Entre Ríos',
+  'Campo Flores — Buenos Aires',
+  'Apiario Patagónico — Neuquén',
+  'Colmenar del Sur — Mendoza',
+];
+
+const VARIETIES = ['Wildflower', 'Manuka', 'Orange Blossom', 'Clover', 'Buckwheat', 'Acacia'];
+const URGENCIES: UrgencyLevel[] = ['STANDARD', 'STANDARD', 'STANDARD', 'PRIORITY', 'IMMEDIATE'];
+
+function daysFromNow(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  d.setHours([9, 10, 11, 13, 14, 15, 16][Math.floor(Math.random() * 7)], 0, 0, 0);
+  return d;
+}
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+async function main() {
+  console.log('Seeding database…');
+
+  // Clean existing seed data (keep real users)
+  await prisma.notification.deleteMany({ where: { userId: { startsWith: 'seed_' } } });
+  await prisma.appointment.deleteMany({ where: { userId: { startsWith: 'seed_' } } });
+  await prisma.user.deleteMany({ where: { id: { startsWith: 'seed_' } } });
+
+  // Upsert service
+  const service = await prisma.service.upsert({
+    where: { id: 'service_extraccion_miel' },
+    update: {},
+    create: {
+      id: 'service_extraccion_miel',
+      name: 'Extracción de Miel',
+      description: 'Servicio completo de extracción, centrifugado y envasado de miel.',
+      durationMin: 480,
+      isActive: true,
+    },
+  });
+
+  // Create clients
+  const users = await Promise.all(
+    CLIENTS.map(c =>
+      prisma.user.create({ data: { id: c.id, email: c.email, name: c.name, role: 'CLIENT' } })
+    )
+  );
+
+  const appts: { id: string; userId: string; email: string; name: string; status: string; scheduledAt: Date }[] = [];
+
+  // ── 10 PENDING (next 14 days) ─────────────────────────────────────────────
+  for (let i = 0; i < 10; i++) {
+    const user = users[i % users.length];
+    const a = await prisma.appointment.create({
+      data: {
+        userId: user.id,
+        serviceId: service.id,
+        scheduledAt: daysFromNow(2 + i),
+        status: 'PENDING',
+        honeyVariety: pick(VARIETIES),
+        quantity: 5 + Math.floor(Math.random() * 20),
+        urgencyLevel: pick(URGENCIES),
+        apiarySource: pick(APIARIES),
+        notes: Math.random() > 0.5 ? 'Acceso por ruta provincial. Avisar con anticipación.' : null,
+      },
+    });
+    appts.push({ id: a.id, userId: user.id, email: user.email, name: user.name, status: 'PENDING', scheduledAt: a.scheduledAt });
+  }
+
+  // ── 15 CONFIRMED (next 3 weeks) ────────────────────────────────────────────
+  for (let i = 0; i < 15; i++) {
+    const user = users[i % users.length];
+    const a = await prisma.appointment.create({
+      data: {
+        userId: user.id,
+        serviceId: service.id,
+        scheduledAt: daysFromNow(3 + i * 2),
+        status: 'CONFIRMED',
+        honeyVariety: pick(VARIETIES),
+        quantity: 8 + Math.floor(Math.random() * 25),
+        urgencyLevel: pick(URGENCIES),
+        apiarySource: pick(APIARIES),
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        appointmentId: a.id,
+        type: 'CONFIRMED',
+        message: `Tu solicitud de extracción ha sido confirmada para el ${a.scheduledAt.toLocaleDateString('es-AR', { dateStyle: 'long' })}.`,
+        read: Math.random() > 0.4,
+      },
+    });
+    appts.push({ id: a.id, userId: user.id, email: user.email, name: user.name, status: 'CONFIRMED', scheduledAt: a.scheduledAt });
+  }
+
+  // ── 3 IN_PROGRESS (this week) ─────────────────────────────────────────────
+  for (let i = 0; i < 3; i++) {
+    const user = users[i];
+    await prisma.appointment.create({
+      data: {
+        userId: user.id,
+        serviceId: service.id,
+        scheduledAt: daysFromNow(-1 + i),
+        status: 'IN_PROGRESS',
+        honeyVariety: pick(VARIETIES),
+        quantity: 12 + i * 3,
+        urgencyLevel: 'STANDARD',
+        apiarySource: pick(APIARIES),
+      },
+    });
+  }
+
+  // ── 15 COMPLETED (past 6 weeks) ────────────────────────────────────────────
+  for (let i = 0; i < 15; i++) {
+    const user = users[i % users.length];
+    await prisma.appointment.create({
+      data: {
+        userId: user.id,
+        serviceId: service.id,
+        scheduledAt: daysFromNow(-5 - i * 3),
+        status: 'COMPLETED',
+        honeyVariety: pick(VARIETIES),
+        quantity: 10 + Math.floor(Math.random() * 20),
+        urgencyLevel: pick(URGENCIES),
+        apiarySource: pick(APIARIES),
+      },
+    });
+  }
+
+  // ── 7 CANCELLED (past 4 weeks) ────────────────────────────────────────────
+  const CANCEL_REASONS = [
+    'Condiciones climáticas adversas.',
+    'Apiario no disponible en la fecha acordada.',
+    'Solicitud duplicada del productor.',
+    'Equipo de extracción en mantenimiento.',
+    'Cancelado a pedido del productor.',
+  ];
+  for (let i = 0; i < 7; i++) {
+    const user = users[(i + 3) % users.length];
+    const reason = pick(CANCEL_REASONS);
+    const a = await prisma.appointment.create({
+      data: {
+        userId: user.id,
+        serviceId: service.id,
+        scheduledAt: daysFromNow(-3 - i * 4),
+        status: 'CANCELLED',
+        honeyVariety: pick(VARIETIES),
+        quantity: 6 + i,
+        urgencyLevel: 'STANDARD',
+        apiarySource: pick(APIARIES),
+        adminNotes: reason,
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        appointmentId: a.id,
+        type: 'CANCELLED',
+        message: `Tu solicitud de extracción fue cancelada. Motivo: ${reason}`,
+        read: Math.random() > 0.3,
+      },
+    });
+  }
+
+  console.log(`✓ Created ${users.length} clients`);
+  console.log(`✓ Seeded 50 appointments (10 PENDING, 15 CONFIRMED, 3 IN_PROGRESS, 15 COMPLETED, 7 CANCELLED)`);
+  console.log(`✓ Created notifications for actioned appointments`);
+}
+
+main()
+  .catch(e => { console.error(e); process.exit(1); })
+  .finally(() => prisma.$disconnect());

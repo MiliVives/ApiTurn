@@ -12,11 +12,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#c9a84c',
+  PENDING: '#9a6e00',
   CONFIRMED: '#2e7d4f',
   IN_PROGRESS: '#1a6890',
-  COMPLETED: '#8a7a6a',
-  CANCELLED: '#c0392b',
+  COMPLETED: '#6b5e52',
+  CANCELLED: '#b03020',
 };
 
 export default async function ClientPage() {
@@ -73,7 +73,7 @@ export default async function ClientPage() {
       )}
 
       <div className="mb-6 flex items-center justify-between">
-        <p className="text-[9px] tracking-[0.35em]" style={{ color: 'var(--muted)' }}>
+        <p className="text-[10px] font-medium tracking-[0.25em]" style={{ color: 'var(--dark)' }}>
           MIS SOLICITUDES ACTIVAS
         </p>
         <Link
