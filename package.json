@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "prisma generate && next build",
     "dev": "next dev --turbopack",
     "start": "next start"
   },
@@ -37,7 +37,11 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@clerk/shared",
+      "@prisma/engines",
       "bcrypt",
+      "esbuild",
+      "prisma",
       "sharp"
     ]
   }
