@@ -6,7 +6,7 @@ export async function syncUser(userId: string, email: string, name: string) {
 
   await prisma.user.upsert({
     where: { id: userId },
-    update: {},
+    update: { email, name },
     create: { id: userId, email, name, role },
   });
 }
