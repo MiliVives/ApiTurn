@@ -19,6 +19,8 @@ export async function createAppointmentRequest(formData: FormData) {
   const urgencyLevel = (formData.get('urgencyLevel') as UrgencyLevel) ?? 'STANDARD';
   const apiarySource = formData.get('apiarySource') as string;
   const notes = formData.get('notes') as string;
+  const totalEmptyKg  = formData.get('totalEmptyKg')  ? parseFloat(formData.get('totalEmptyKg')  as string) : null;
+  const totalFilledKg = formData.get('totalFilledKg') ? parseFloat(formData.get('totalFilledKg') as string) : null;
   const scheduledAtRaw = formData.get('scheduledAt') as string;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -38,6 +40,8 @@ export async function createAppointmentRequest(formData: FormData) {
       scheduledAt: scheduledAtRaw ? new Date(scheduledAtRaw) : new Date(),
       honeyVariety: honeyVariety || null,
       quantity: isNaN(quantity) ? null : quantity,
+      totalEmptyKg:  totalEmptyKg  !== null && !isNaN(totalEmptyKg)  ? totalEmptyKg  : null,
+      totalFilledKg: totalFilledKg !== null && !isNaN(totalFilledKg) ? totalFilledKg : null,
       urgencyLevel,
       apiarySource: apiarySource || null,
       notes: notes || null,

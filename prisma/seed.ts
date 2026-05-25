@@ -30,7 +30,10 @@ const APIARIES = [
   'Colmenar del Sur — Mendoza',
 ];
 
-const VARIETIES = ['Wildflower', 'Manuka', 'Orange Blossom', 'Clover', 'Buckwheat', 'Acacia'];
+const VARIETIES = [
+  'Abrepuño', 'Abrepuño y Flor Amarilla', 'Alfalfa', 'Alfalfa y Girasol',
+  'Flor Amarilla', 'Girasol', 'Monte', 'Variada', 'Vicia', 'Vicia y Abrepuño',
+];
 const URGENCIES: UrgencyLevel[] = ['STANDARD', 'STANDARD', 'STANDARD', 'PRIORITY', 'IMMEDIATE'];
 
 function daysFromNow(n: number): Date {

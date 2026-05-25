@@ -45,7 +45,7 @@ export default async function SettingsPage() {
         ))}
       </div>
 
-      <p className="text-[9px] tracking-[0.2em] mt-8" style={{ color: 'var(--border)' }}>
+      <p className="text-[9px] tracking-[0.2em] mt-8" style={{ color: 'var(--muted)' }}>
         Para modificar tu nombre o correo, gestiona tu cuenta desde el botón de perfil en el panel lateral.
       </p>
     </div>

@@ -19,25 +19,77 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: '#b03020',
 };
 
+function AppointmentCard({ appt }: { appt: {
+  id: string; scheduledAt: Date; honeyVariety: string | null;
+  apiarySource: string | null; status: string;
+}}) {
+  return (
+    <div
+      className="rounded-sm p-5 flex items-center justify-between flex-wrap gap-3"
+      style={{ border: '1px solid #2f4858', backgroundColor: '#faf8f4' }}
+    >
+      <div>
+        <p className="text-[9px] tracking-[0.2em] mb-1" style={{ color: '#2f4858' }}>
+          {appt.scheduledAt.toLocaleDateString('es-AR', { dateStyle: 'long' })}
+          {' · '}
+          {appt.scheduledAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+        </p>
+        <p className="text-[11px] font-light" style={{ color: 'var(--dark)' }}>
+          {appt.honeyVariety ?? 'Extracción'}
+          {appt.apiarySource ? ` — ${appt.apiarySource}` : ''}
+        </p>
+      </div>
+      <span
+        className="text-[8px] tracking-[0.25em] px-2.5 py-1 rounded-sm"
+        style={{
+          backgroundColor: `${STATUS_COLORS[appt.status]}15`,
+          color: STATUS_COLORS[appt.status],
+          border: `1px solid ${STATUS_COLORS[appt.status]}35`,
+        }}
+      >
+        {STATUS_LABELS[appt.status] ?? appt.status}
+      </span>
+    </div>
+  );
+}
+
+function SectionHeader({ label, action }: { label: string; action?: React.ReactNode }) {
+  return (
+    <div className="mb-4 flex items-center justify-between">
+      <p className="text-[10px] font-medium tracking-[0.25em]" style={{ color: 'var(--dark)' }}>
+        {label}
+      </p>
+      {action}
+    </div>
+  );
+}
+
 export default async function ClientPage() {
   const { userId } = await auth();
   const user = await currentUser();
   const firstName = user?.firstName ?? 'Productor';
 
-  const appointments = userId
-    ? await prisma.appointment.findMany({
-        where: {
-          userId,
-          status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] },
-        },
-        orderBy: { scheduledAt: 'asc' },
-        take: 10,
-      })
-    : [];
+  const [pending, active, unreadCount] = await Promise.all([
+    userId ? prisma.appointment.findMany({
+      where: { userId, status: 'PENDING' },
+      orderBy: { scheduledAt: 'asc' },
+    }) : [],
+    userId ? prisma.appointment.findMany({
+      where: { userId, status: { in: ['CONFIRMED', 'IN_PROGRESS'] } },
+      orderBy: { scheduledAt: 'asc' },
+    }) : [],
+    userId ? prisma.notification.count({ where: { userId, read: false } }) : 0,
+  ]);
 
-  const unreadCount = userId
-    ? await prisma.notification.count({ where: { userId, read: false } })
-    : 0;
+  const newRequestBtn = (
+    <Link
+      href="/client/new-request"
+      className="text-[9px] tracking-[0.3em] px-4 py-2 transition-opacity hover:opacity-80"
+      style={{ backgroundColor: 'var(--dark)', color: 'var(--gold)' }}
+    >
+      + NUEVA SOLICITUD
+    </Link>
+  );
 
   return (
     <div className="p-8 md:p-10">
@@ -72,71 +124,56 @@ export default async function ClientPage() {
         </Link>
       )}
 
-      <div className="mb-6 flex items-center justify-between">
-        <p className="text-[10px] font-medium tracking-[0.25em]" style={{ color: 'var(--dark)' }}>
-          MIS SOLICITUDES ACTIVAS
-        </p>
-        <Link
-          href="/client/new-request"
-          className="text-[9px] tracking-[0.3em] px-4 py-2 transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--dark)', color: 'var(--gold)' }}
-        >
-          + NUEVA SOLICITUD
-        </Link>
+      {/* Active appointments (CONFIRMED / IN_PROGRESS) */}
+      <div className="mb-10">
+        <SectionHeader label="MIS SOLICITUDES ACTIVAS" action={newRequestBtn} />
+
+        {active.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-16 border border-dashed rounded-sm"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <p className="text-[10px] tracking-[0.3em] mb-2" style={{ color: 'var(--muted)' }}>
+              SIN SOLICITUDES ACTIVAS
+            </p>
+            <p className={`${cormorant.className} text-lg italic mb-6`} style={{ color: 'var(--border)' }}>
+              Todavía no tenés turnos confirmados.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-3 mb-3">
+              {active.map(appt => <AppointmentCard key={appt.id} appt={appt} />)}
+            </div>
+            <p className="text-[8px] tracking-[0.15em] leading-relaxed" style={{ color: 'var(--muted)' }}>
+              * Presentate al apiario <strong>15 minutos antes</strong> del turno asignado. Las solicitudes confirmadas que no sean atendidas en horario podrán ser canceladas automáticamente.
+            </p>
+          </>
+        )}
       </div>
 
-      {appointments.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center py-20 border border-dashed rounded-sm"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <p className="text-[10px] tracking-[0.3em] mb-2" style={{ color: 'var(--muted)' }}>
-            SIN SOLICITUDES ACTIVAS
-          </p>
-          <p className={`${cormorant.className} text-lg italic mb-6`} style={{ color: 'var(--border)' }}>
-            Todavía no has realizado ninguna solicitud.
-          </p>
-          <Link
-            href="/client/new-request"
-            className="text-[9px] tracking-[0.3em] px-5 py-2.5 transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--dark)', color: 'var(--gold)' }}
+      {/* Pending appointments (awaiting admin confirmation) */}
+      <div>
+        <SectionHeader label="MIS SOLICITUDES PENDIENTES" />
+
+        {pending.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-12 border border-dashed rounded-sm"
+            style={{ borderColor: 'var(--border)' }}
           >
-            SOLICITAR EXTRACCIÓN
-          </Link>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {appointments.map((appt) => (
-            <div
-              key={appt.id}
-              className="border rounded-sm p-5 flex items-center justify-between flex-wrap gap-3"
-              style={{ borderColor: 'var(--border)', backgroundColor: '#ffffff' }}
-            >
-              <div>
-                <p className="text-[9px] tracking-[0.2em] mb-1" style={{ color: 'var(--muted)' }}>
-                  {appt.scheduledAt.toLocaleDateString('es-AR', { dateStyle: 'long' })}
-                  {' · '}
-                  {appt.scheduledAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-                <p className="text-[11px] font-light" style={{ color: 'var(--dark)' }}>
-                  {appt.honeyVariety ?? 'Extracción'}
-                  {appt.apiarySource ? ` — ${appt.apiarySource}` : ''}
-                </p>
-              </div>
-              <span
-                className="text-[8px] tracking-[0.25em] px-2.5 py-1 rounded-sm"
-                style={{
-                  backgroundColor: `${STATUS_COLORS[appt.status]}15`,
-                  color: STATUS_COLORS[appt.status],
-                  border: `1px solid ${STATUS_COLORS[appt.status]}35`,
-                }}
-              >
-                {STATUS_LABELS[appt.status] ?? appt.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+            <p className="text-[10px] tracking-[0.3em] mb-1" style={{ color: 'var(--muted)' }}>
+              SIN SOLICITUDES PENDIENTES
+            </p>
+            <p className={`${cormorant.className} text-base italic`} style={{ color: 'var(--border)' }}>
+              Tus próximas solicitudes aparecerán aquí.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {pending.map(appt => <AppointmentCard key={appt.id} appt={appt} />)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -83,7 +83,9 @@ model Appointment {
   queuePosition Int?              // set by the Python optimizer
   notes         String?
   honeyVariety  String?
-  quantity      Int?
+  quantity           Int?
+  totalEmptyKg       Float?       // total weight of all empty alzas (optional)
+  totalFilledKg      Float?       // total weight of all filled alzas (optional)
   urgencyLevel  UrgencyLevel      @default(STANDARD)
   apiarySource  String?
   adminNotes    String?
