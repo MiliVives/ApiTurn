@@ -104,7 +104,7 @@ export default function HomePage() {
               className="text-[10px] font-light tracking-[0.4em] opacity-70"
               style={{ color: '#c9a84c' }}
             >
-              DESDE 1924
+              DESDE 2026
             </span>
           </div>
         </div>
