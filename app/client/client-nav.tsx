@@ -28,7 +28,7 @@ const links: NavLink[] = [
   { name: 'CONFIGURACIÓN',   href: '/client/settings',       icon: Cog6ToothIcon },
 ];
 
-export function ClientNav() {
+export function ClientNav({ hasPendingData }: { hasPendingData?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -36,6 +36,7 @@ export function ClientNav() {
       {links.map((link) => {
         const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
         const Icon = link.icon;
+        const showBadge = hasPendingData && link.href === '/client/settings';
         return (
           <Link
             key={link.name}
@@ -48,6 +49,12 @@ export function ClientNav() {
             </span>
             <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: active ? 'var(--gold)' : 'rgba(201,168,76,0.45)' }} />
             <span>{link.name}</span>
+            {showBadge && (
+              <span
+                className="ml-auto w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: 'var(--gold)' }}
+              />
+            )}
           </Link>
         );
       })}

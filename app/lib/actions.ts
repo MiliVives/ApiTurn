@@ -25,6 +25,7 @@ export async function createAppointmentRequest(formData: FormData) {
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) redirect('/client');
+  if (!user.renapaNumber) redirect('/client/settings');
 
   let resolvedServiceId = serviceId;
   if (!resolvedServiceId) {
@@ -139,6 +140,24 @@ export async function cancelAppointment(formData: FormData) {
 
   revalidatePath('/admin/pending');
   revalidatePath('/admin/scheduler');
+}
+
+const RENAPA_REGEX = /^\d{4}-\d{2}-\d{5}$/;
+
+export async function updateRenapaNumber(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const renapaNumber = (formData.get('renapaNumber') as string ?? '').trim();
+  if (renapaNumber && !RENAPA_REGEX.test(renapaNumber)) return;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { renapaNumber: renapaNumber || null },
+  });
+
+  revalidatePath('/client/settings');
+  revalidatePath('/client');
 }
 
 export async function markNotificationRead(formData: FormData) {

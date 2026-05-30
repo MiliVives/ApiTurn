@@ -43,6 +43,7 @@ model User {
   email         String         @unique
   name          String
   role          Role           @default(CLIENT)
+  renapaNumber  String?        // Registro Nacional de Productores Apícolas
   appointments  Appointment[]
   notifications Notification[]
   createdAt     DateTime       @default(now())
