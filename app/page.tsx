@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { cormorant } from '@/app/ui/fonts';
 import { AuthButtons } from '@/app/ui/auth-buttons';
 
@@ -149,20 +150,20 @@ export default function HomePage() {
 
           {/* Secondary links */}
           <div className="flex justify-between mt-8">
-            <a
-              href="#"
+            <Link
+              href="/centro-de-ayuda"
               className="text-[9px] tracking-[0.3em] transition-opacity hover:opacity-60"
               style={{ color: '#8a7a6a' }}
             >
               CENTRO DE AYUDA
-            </a>
-            <a
-              href="#"
+            </Link>
+            <Link
+              href="/normas-de-extraccion"
               className="text-[9px] tracking-[0.3em] transition-opacity hover:opacity-60"
               style={{ color: '#8a7a6a' }}
             >
               NORMAS DE EXTRACCIÓN
-            </a>
+            </Link>
           </div>
         </div>
 
