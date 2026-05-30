@@ -77,7 +77,7 @@ export default function CentroDeAyudaPage() {
               <p className="text-[9px] font-medium tracking-[0.25em] mb-2" style={{ color: '#1a1208' }}>
                 {q}
               </p>
-              <p className="text-[13px] font-light leading-relaxed" style={{ color: '#5a4e45' }}>
+              <p className="text-[13px] font-light leading-relaxed text-justify" style={{ color: '#5a4e45' }}>
                 {a}
               </p>
             </div>

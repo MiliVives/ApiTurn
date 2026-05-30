@@ -1,6 +1,7 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
 import SideNav from '@/app/ui/dashboard/sidenav';
 import { syncUser } from '@/app/lib/user-sync';
+import { CollapsibleSidebarShell } from '@/app/ui/collapsible-sidebar-shell';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
@@ -15,11 +16,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <SideNav />
-      <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--cream)' }}>
-        {children}
-      </div>
-    </div>
+    <CollapsibleSidebarShell sidebar={<SideNav />}>
+      {children}
+    </CollapsibleSidebarShell>
   );
 }
