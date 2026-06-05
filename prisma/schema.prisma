@@ -39,15 +39,16 @@ enum NotificationType {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id // Clerk user ID
-  email         String         @unique
-  name          String
-  role          Role           @default(CLIENT)
-  renapaNumber  String?        // Registro Nacional de Productores Apícolas
-  appointments  Appointment[]
-  notifications Notification[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id               String         @id // Clerk user ID
+  email            String         @unique
+  name             String
+  role             Role           @default(CLIENT)
+  renapaNumber     String?        // Registro Nacional de Productores Apícolas
+  producerPriority UrgencyLevel   @default(STANDARD) // admin-assigned priority tier
+  appointments     Appointment[]
+  notifications    Notification[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 model Service {
@@ -56,6 +57,9 @@ model Service {
   description  String?
   durationMin  Int           // minutes per appointment
   isActive     Boolean       @default(true)
+  baseFeeARS       Float?    // base service fee (ARS)
+  perKgFeeARS      Float?    // per-kg honey processing fee (ARS)
+  drumRentalFeeARS Float?    // per-drum rental fee when producer doesn't bring drums (ARS)
   appointments Appointment[]
   schedules    Schedule[]
   createdAt    DateTime      @default(now())
@@ -84,15 +88,21 @@ model Appointment {
   queuePosition Int?              // set by the Python optimizer
   notes         String?
   honeyVariety  String?
-  quantity           Int?
-  totalEmptyKg       Float?       // total weight of all empty alzas (optional)
-  totalFilledKg      Float?       // total weight of all filled alzas (optional)
-  urgencyLevel  UrgencyLevel      @default(STANDARD)
+  quantity           Int?          // total frames (= sum of frame breakdown fields)
+  frameCount1Half    Int?          // alzas 1/2
+  frameCount3Quarter Int?          // alzas 3/4
+  frameCountStd      Int?          // alzas standard
+  totalEmptyKg       Float?        // total weight of all empty alzas (optional)
+  totalFilledKg      Float?        // total weight of all filled alzas (optional)
+  urgencyLevel  UrgencyLevel       @default(STANDARD)
   apiarySource  String?
+  loteNumber    String?            // auto-assigned on confirmation, e.g. "0001/26"
+  loteDate      DateTime?          // when loteNumber was assigned
+  estimatedCostARS Float?          // cost estimate saved at confirmation for admin records
   adminNotes    String?
   notifications Notification[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 model Notification {

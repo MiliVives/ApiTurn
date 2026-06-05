@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { cormorant } from '@/app/ui/fonts';
 import { createAppointmentRequest } from '@/app/lib/actions';
-import { formatDuration, estimateDuration, WORK_START_HOUR, WORK_END_HOUR } from '@/app/lib/scheduling';
+import { formatDuration, estimateDurationFromFrames, WORK_START_HOUR, WORK_END_HOUR } from '@/app/lib/scheduling';
 
 const HONEY_VARIETIES = [
   { id: 'abrepuno',           label: 'Abrepuño',                sub: 'SILVESTRE' },
@@ -25,6 +25,12 @@ const URGENCY_OPTIONS = [
   { value: 'STANDARD', label: 'ESTÁNDAR' },
   { value: 'PRIORITY', label: 'PRIORIDAD' },
   { value: 'IMMEDIATE', label: 'INMEDIATA' },
+];
+
+const FRAME_TYPES = [
+  { key: 'frame1Half' as const,    label: 'ALZAS 1/2' },
+  { key: 'frame3Quarter' as const, label: 'ALZAS 3/4' },
+  { key: 'frameStd' as const,      label: 'ALZAS STD' },
 ];
 
 function getDaysInMonth(year: number, month: number) {
@@ -52,6 +58,44 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
+function FrameStepper({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[9px] tracking-[0.2em]" style={{ color: 'var(--muted)' }}>{label}</p>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(0, value - 1))}
+          className="w-6 h-6 border flex items-center justify-center text-sm transition-opacity hover:opacity-60"
+          style={{ borderColor: 'var(--border)', color: 'var(--dark)' }}
+        >−</button>
+        <input
+          type="number"
+          min="0"
+          value={value}
+          onChange={e => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+          className="w-10 text-center bg-transparent outline-none border-b text-lg font-light"
+          style={{ color: 'var(--dark)', borderColor: 'rgba(201,168,76,0.35)' }}
+        />
+        <button
+          type="button"
+          onClick={() => onChange(value + 1)}
+          className="w-6 h-6 border flex items-center justify-center text-sm transition-opacity hover:opacity-60"
+          style={{ borderColor: 'var(--border)', color: 'var(--dark)' }}
+        >+</button>
+      </div>
+    </div>
+  );
+}
+
 export function NewRequestForm() {
   const router = useRouter();
   const today = new Date();
@@ -61,7 +105,12 @@ export function NewRequestForm() {
   const [honeyVariety, setHoneyVariety] = useState('');
   const [customVariety, setCustomVariety] = useState('');
   const [showCustom, setShowCustom] = useState(false);
-  const [quantity, setQuantity] = useState(1);
+
+  const [frame1Half, setFrame1Half] = useState(0);
+  const [frame3Quarter, setFrame3Quarter] = useState(0);
+  const [frameStd, setFrameStd] = useState(0);
+  const totalFrames = frame1Half + frame3Quarter + frameStd;
+
   const [totalEmptyKg, setTotalEmptyKg] = useState('');
   const [totalFilledKg, setTotalFilledKg] = useState('');
   const [urgency, setUrgency] = useState('STANDARD');
@@ -76,6 +125,17 @@ export function NewRequestForm() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null);
 
+  const frameSetters: Record<typeof FRAME_TYPES[number]['key'], (v: number) => void> = {
+    frame1Half: setFrame1Half,
+    frame3Quarter: setFrame3Quarter,
+    frameStd: setFrameStd,
+  };
+  const frameValues: Record<typeof FRAME_TYPES[number]['key'], number> = {
+    frame1Half,
+    frame3Quarter,
+    frameStd,
+  };
+
   useEffect(() => {
     fetch('/api/user/apiaries').then(r => r.json()).then(setPastApiaries).catch(() => {});
   }, []);
@@ -87,7 +147,7 @@ export function NewRequestForm() {
     const t = setTimeout(async () => {
       setSlotsLoading(true);
       try {
-        const res = await fetch(`/api/availability?date=${dateStr}&quantity=${quantity}`);
+        const res = await fetch(`/api/availability?date=${dateStr}&quantity=${totalFrames}`);
         const data = await res.json();
         setAvailableSlots(data.slots ?? []);
         setEstimatedDuration(data.durationMin ?? null);
@@ -96,7 +156,7 @@ export function NewRequestForm() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [selectedDate, quantity]);
+  }, [selectedDate, totalFrames]);
 
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay = getFirstDayOfMonth(calYear, calMonth);
@@ -111,7 +171,7 @@ export function NewRequestForm() {
   }
 
   async function handleSubmit() {
-    if (!selectedDate || !selectedSlot || !honeyVariety || !apiarySource) return;
+    if (!selectedDate || !selectedSlot || !honeyVariety || !apiarySource || totalFrames === 0) return;
     setSubmitting(true);
 
     const scheduledAt = new Date(selectedDate);
@@ -120,7 +180,9 @@ export function NewRequestForm() {
 
     const fd = new FormData();
     fd.append('honeyVariety', honeyVariety);
-    fd.append('quantity', String(quantity));
+    fd.append('frame1Half', String(frame1Half));
+    fd.append('frame3Quarter', String(frame3Quarter));
+    fd.append('frameStd', String(frameStd));
     if (totalEmptyKg)  fd.append('totalEmptyKg',  totalEmptyKg);
     if (totalFilledKg) fd.append('totalFilledKg', totalFilledKg);
     fd.append('urgencyLevel', urgency);
@@ -215,34 +277,42 @@ export function NewRequestForm() {
             )}
           </div>
 
+          {/* Frame breakdown */}
           <div className="py-8 border-b" style={{ borderColor: 'rgba(201,168,76,0.2)' }}>
             <SectionLabel>CANTIDAD DE ALZAS</SectionLabel>
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                className="w-8 h-8 border flex items-center justify-center text-sm transition-opacity hover:opacity-60"
-                style={{ borderColor: 'var(--border)', color: 'var(--dark)' }}
-              >−</button>
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="text-2xl font-light w-12 text-center bg-transparent outline-none border-b"
-                style={{ color: 'var(--dark)', borderColor: 'rgba(201,168,76,0.35)' }}
-              />
-              <button
-                type="button"
-                onClick={() => setQuantity(q => q + 1)}
-                className="w-8 h-8 border flex items-center justify-center text-sm transition-opacity hover:opacity-60"
-                style={{ borderColor: 'var(--border)', color: 'var(--dark)' }}
-              >+</button>
+            <div className="grid grid-cols-3 gap-6 mb-4">
+              {FRAME_TYPES.map(({ key, label }) => (
+                <FrameStepper
+                  key={key}
+                  label={label}
+                  value={frameValues[key]}
+                  onChange={frameSetters[key]}
+                />
+              ))}
             </div>
 
-            {(() => {
+            {/* Total + duration summary */}
+            <div
+              className="flex items-center justify-between px-4 py-3 border"
+              style={{ borderColor: 'rgba(201,168,76,0.3)', backgroundColor: 'rgba(201,168,76,0.05)' }}
+            >
+              <div>
+                <p className="text-[8px] tracking-[0.25em] mb-0.5" style={{ color: 'var(--muted)' }}>TOTAL</p>
+                <p className="text-xl font-light" style={{ color: 'var(--dark)' }}>
+                  {totalFrames} <span className="text-[10px] tracking-[0.15em]" style={{ color: 'var(--muted)' }}>alzas</span>
+                </p>
+              </div>
+              {totalFrames > 0 && (
+                <p className="text-[9px] tracking-[0.2em]" style={{ color: 'var(--gold)' }}>
+                  EST. {formatDuration(estimateDurationFromFrames(frame1Half, frame3Quarter, frameStd))}
+                </p>
+              )}
+            </div>
+
+            {/* Multi-day warning */}
+            {totalFrames > 0 && (() => {
               const workMinPerDay = (WORK_END_HOUR - WORK_START_HOUR) * 60;
-              const dur = estimateDuration(quantity);
+              const dur = estimateDurationFromFrames(frame1Half, frame3Quarter, frameStd);
               if (dur <= workMinPerDay) return null;
               const minDays = Math.ceil(dur / workMinPerDay);
               return (
@@ -252,6 +322,7 @@ export function NewRequestForm() {
               );
             })()}
 
+            {/* Optional weights */}
             <div className="mt-4 flex flex-col gap-3">
               <p className="text-[9px] tracking-[0.3em]" style={{ color: 'var(--border)' }}>
                 PESO TOTAL DE ALZAS (OPCIONAL)
@@ -413,7 +484,7 @@ export function NewRequestForm() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || !selectedDate || !selectedSlot || !honeyVariety || !apiarySource}
+            disabled={submitting || !selectedDate || !selectedSlot || !honeyVariety || !apiarySource || totalFrames === 0}
             className="w-full py-3 text-[9px] font-light tracking-[0.4em] transition-opacity hover:opacity-80 disabled:opacity-40 mt-auto"
             style={{ backgroundColor: 'var(--dark)', color: 'var(--gold)' }}
           >

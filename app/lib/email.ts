@@ -39,13 +39,22 @@ function baseTemplate(content: string): string {
 </html>`;
 }
 
-export async function sendConfirmedEmail(to: string, clientName: string, date: string) {
+export async function sendConfirmedEmail(
+  to: string,
+  clientName: string,
+  date: string,
+  loteNumber?: string
+) {
   if (!process.env.RESEND_API_KEY) return;
+  const loteRow = loteNumber
+    ? `<p style="margin:0 0 24px;color:#3a3028;font-size:14px;line-height:1.6;">Número de lote asignado: <strong style="color:#c9a84c;">${loteNumber}</strong></p>`
+    : '';
   const html = baseTemplate(`
     <p style="margin:0 0 8px;color:#8a7a6a;font-size:10px;letter-spacing:0.35em;">CONFIRMACIÓN DE EXTRACCIÓN</p>
     <h1 style="margin:0 0 24px;color:#1a1208;font-size:28px;font-weight:300;letter-spacing:0.04em;">Solicitud Confirmada</h1>
     <p style="margin:0 0 16px;color:#3a3028;font-size:15px;line-height:1.6;">Estimado/a <strong>${clientName}</strong>,</p>
     <p style="margin:0 0 24px;color:#3a3028;font-size:15px;line-height:1.6;">Tu solicitud de extracción ha sido <strong style="color:#2e7d4f;">confirmada</strong> para el <strong>${date}</strong>.</p>
+    ${loteRow}
     <p style="margin:0 0 24px;color:#3a3028;font-size:15px;line-height:1.6;">Puedes revisar el estado de tu solicitud en el portal.</p>
     <div style="margin-top:32px;padding-top:24px;border-top:1px solid #d0c8bc;">
       <p style="margin:0;color:#8a7a6a;font-size:11px;font-style:italic;">El Equipo de Apiturn</p>

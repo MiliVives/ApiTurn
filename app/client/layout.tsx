@@ -7,8 +7,16 @@ import { CollapsibleSidebarShell } from '@/app/ui/collapsible-sidebar-shell';
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
-  const user = await currentUser();
 
+  // currentUser() (Clerk JWT) and findUnique (DB) are independent — run them in parallel
+  const [user, dbUser] = await Promise.all([
+    currentUser(),
+    userId
+      ? prisma.user.findUnique({ where: { id: userId }, select: { renapaNumber: true } })
+      : Promise.resolve(null),
+  ]);
+
+  // syncUser runs after both — uses the already-warm DB connection from findUnique
   if (userId && user) {
     await syncUser(
       userId,
@@ -18,10 +26,6 @@ export default async function ClientLayout({ children }: { children: React.React
   }
 
   const shortId = userId ? userId.slice(-8).toUpperCase() : '--------';
-
-  const dbUser = userId
-    ? await prisma.user.findUnique({ where: { id: userId }, select: { renapaNumber: true } })
-    : null;
   const hasPendingData = !dbUser?.renapaNumber;
 
   const sidebar = (

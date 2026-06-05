@@ -36,7 +36,6 @@ export function CollapsibleSidebarShell({
           Desktop: static flex child, always visible */}
       <div
         className={[
-          'relative',
           'fixed inset-y-0 left-0 z-30',
           'md:static md:flex md:flex-shrink-0',
           'transition-transform duration-200 ease-in-out',
