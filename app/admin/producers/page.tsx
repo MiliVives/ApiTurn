@@ -4,15 +4,15 @@ import { cormorant } from '@/app/ui/fonts';
 import { updateProducerPriority } from '@/app/lib/actions';
 import type { AppointmentStatus, UrgencyLevel } from '@/generated/prisma/client';
 
-const ACTIVE_STATUSES: AppointmentStatus[] = ['PENDING', 'CONFIRMED', 'IN_PROGRESS'];
+const ACTIVE_STATUSES: AppointmentStatus[] = ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS'];
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
-  PENDING: 'PENDIENTE', CONFIRMED: 'CONFIRMADO', IN_PROGRESS: 'EN PROCESO',
-  COMPLETED: 'COMPLETADO', CANCELLED: 'CANCELADO', NO_SHOW: 'AUSENTE',
+  PENDING: 'PENDIENTE', CONFIRMED: 'CONFIRMADO', CHECKED_IN: 'PRESENTE',
+  IN_PROGRESS: 'EN PROCESO', COMPLETED: 'COMPLETADO', CANCELLED: 'CANCELADO', NO_SHOW: 'AUSENTE',
 };
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
-  PENDING: '#c9a84c', CONFIRMED: '#2e7d4f', IN_PROGRESS: '#1a6890',
-  COMPLETED: '#8a7a6a', CANCELLED: '#c0392b', NO_SHOW: '#e67e22',
+  PENDING: '#c9a84c', CONFIRMED: '#2e7d4f', CHECKED_IN: '#2f7e9c',
+  IN_PROGRESS: '#1a6890', COMPLETED: '#8a7a6a', CANCELLED: '#c0392b', NO_SHOW: '#e67e22',
 };
 
 // Producer priority labels (admin-only — different from appointment urgency labels)

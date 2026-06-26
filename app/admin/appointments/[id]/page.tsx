@@ -14,12 +14,12 @@ const URGENCY_COLORS: Record<UrgencyLevel, string> = {
   STANDARD: '#8a7a6a', PRIORITY: '#c9a84c', IMMEDIATE: '#c0392b',
 };
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
-  PENDING: 'PENDIENTE', CONFIRMED: 'CONFIRMADO', IN_PROGRESS: 'EN PROCESO',
-  COMPLETED: 'COMPLETADO', CANCELLED: 'CANCELADO', NO_SHOW: 'AUSENTE',
+  PENDING: 'PENDIENTE', CONFIRMED: 'CONFIRMADO', CHECKED_IN: 'PRESENTE',
+  IN_PROGRESS: 'EN PROCESO', COMPLETED: 'COMPLETADO', CANCELLED: 'CANCELADO', NO_SHOW: 'AUSENTE',
 };
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
-  PENDING: '#c9a84c', CONFIRMED: '#2e7d4f', IN_PROGRESS: '#1a6890',
-  COMPLETED: '#8a7a6a', CANCELLED: '#c0392b', NO_SHOW: '#e67e22',
+  PENDING: '#c9a84c', CONFIRMED: '#2e7d4f', CHECKED_IN: '#2f7e9c',
+  IN_PROGRESS: '#1a6890', COMPLETED: '#8a7a6a', CANCELLED: '#c0392b', NO_SHOW: '#e67e22',
 };
 
 export default async function AppointmentDetailPage({ params }: { params: Promise<{ id: string }> }) {

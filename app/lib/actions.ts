@@ -4,7 +4,7 @@ import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/app/lib/prisma';
-import { UrgencyLevel } from '@/generated/prisma/client';
+import { UrgencyLevel, AppointmentStatus } from '@/generated/prisma/client';
 import { sendConfirmedEmail, sendRescheduledEmail, sendCancelledEmail } from '@/app/lib/email';
 import { generateNextLoteNumber, estimateCost } from '@/app/lib/pricing';
 
@@ -243,6 +243,124 @@ export async function updateAppointmentFields(formData: FormData) {
   });
 
   revalidatePath('/admin/pending');
+}
+
+export async function applyOptimizedSchedule(
+  proposed: { id: string; suggestedDate: string }[]
+) {
+  const { userId } = await auth();
+  if (!userId) throw new Error('No autorizado');
+
+  if (!proposed.length) return;
+
+  // Validate all dates before touching the DB
+  const updates = proposed.map(({ id, suggestedDate }) => {
+    const d = new Date(suggestedDate);
+    if (isNaN(d.getTime())) throw new Error(`Fecha inválida para turno ${id}: ${suggestedDate}`);
+    return { id, date: d };
+  });
+
+  // Snapshot current scheduledAt so we can detect which appointments actually moved
+  const before = await prisma.appointment.findMany({
+    where: { id: { in: updates.map(u => u.id) } },
+    select: { id: true, userId: true, scheduledAt: true },
+  });
+
+  // Single transaction — all succeed or none
+  await prisma.$transaction(
+    updates.map(({ id, date }) =>
+      prisma.appointment.update({
+        where: { id },
+        data: { scheduledAt: date },
+      })
+    )
+  );
+
+  // Create RESCHEDULED notifications for appointments that actually changed time
+  for (const { id, date } of updates) {
+    const orig = before.find(b => b.id === id);
+    if (!orig || orig.scheduledAt.getTime() === date.getTime()) continue;
+    const label = date.toLocaleDateString('es-AR', { dateStyle: 'long' });
+    await prisma.notification.create({
+      data: {
+        userId: orig.userId,
+        appointmentId: id,
+        type: 'RESCHEDULED',
+        message: `Tu extracción fue reprogramada al ${label} por optimización del calendario.`,
+      },
+    });
+  }
+
+  revalidatePath('/admin/scheduler');
+}
+
+// ─── Notification Actions ─────────────────────────────────────────────────────
+
+export async function dismissNotification(formData: FormData) {
+  const id = formData.get('id') as string;
+  const { userId } = await auth();
+  if (!userId) return;
+
+  await prisma.notification.deleteMany({ where: { id, userId } });
+  revalidatePath('/client/notifications');
+}
+
+export async function declineRescheduledAppointment(formData: FormData) {
+  const notificationId = formData.get('notificationId') as string;
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const notification = await prisma.notification.findFirst({
+    where: { id: notificationId, userId },
+  });
+  if (!notification?.appointmentId) return;
+
+  await prisma.$transaction([
+    prisma.appointment.update({
+      where: { id: notification.appointmentId },
+      data: { status: 'CANCELLED', adminNotes: 'Reprogramación rechazada por el productor.' },
+    }),
+    prisma.notification.update({
+      where: { id: notificationId },
+      data: { read: true },
+    }),
+  ]);
+
+  revalidatePath('/client/notifications');
+}
+
+// ─── Worker Actions ───────────────────────────────────────────────────────────
+
+const STATUS_TRANSITIONS: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
+  CONFIRMED:   'CHECKED_IN',
+  CHECKED_IN:  'IN_PROGRESS',
+  IN_PROGRESS: 'COMPLETED',
+};
+
+export async function updateAppointmentStatus(formData: FormData) {
+  const appointmentId = formData.get('appointmentId') as string;
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const caller = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!caller || (caller.role !== 'WORKER' && caller.role !== 'ADMIN')) return;
+
+  const appt = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    select: { status: true },
+  });
+  if (!appt) return;
+
+  const next = STATUS_TRANSITIONS[appt.status];
+  if (!next) return;
+
+  await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { status: next },
+  });
+
+  revalidatePath('/worker/active');
+  revalidatePath(`/worker/appointments/${appointmentId}`);
 }
 
 export async function markNotificationRead(formData: FormData) {

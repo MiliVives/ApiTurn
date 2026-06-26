@@ -11,13 +11,14 @@ datasource db {
 
 enum Role {
   ADMIN
-  STAFF
   CLIENT
+  WORKER
 }
 
 enum AppointmentStatus {
   PENDING
   CONFIRMED
+  CHECKED_IN
   IN_PROGRESS
   COMPLETED
   CANCELLED

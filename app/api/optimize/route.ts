@@ -12,5 +12,13 @@ export async function POST(req: NextRequest) {
   });
 
   const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  // Normalize Python snake_case → TypeScript camelCase
+  const normalized = {
+    ...data,
+    proposed: (data.proposed ?? []).map((p: { id: string; suggested_date: string }) => ({
+      id: p.id,
+      suggestedDate: p.suggested_date,
+    })),
+  };
+  return NextResponse.json(normalized, { status: res.status });
 }

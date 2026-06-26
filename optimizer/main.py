@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from optimizer import optimize_queue
-from models import OptimizeRequest, OptimizeResponse
+from models import GeneticRequest, GeneticResponse
+import genetic
 
 app = FastAPI(title="Turnero Optimizer")
 
@@ -18,7 +18,10 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/optimize", response_model=OptimizeResponse)
-def optimize(request: OptimizeRequest):
-    ordered = optimize_queue(request.appointments, request.config)
-    return OptimizeResponse(ordered=ordered)
+@app.post("/optimize", response_model=GeneticResponse)
+def optimize(request: GeneticRequest):
+    result = genetic.optimize(
+        [a.model_dump() for a in request.appointments],
+        request.week_start,
+    )
+    return GeneticResponse(**result)

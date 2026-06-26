@@ -2,9 +2,8 @@ import 'dotenv/config';
 import { PrismaClient, UrgencyLevel } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-const url = new URL(process.env.DATABASE_URL!);
-url.searchParams.set('sslmode', 'verify-full');
-const adapter = new PrismaPg({ connectionString: url.toString() });
+const url = process.env.DATABASE_URL!;
+const adapter = new PrismaPg({ connectionString: url });
 const prisma = new PrismaClient({ adapter });
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -39,7 +38,8 @@ const URGENCIES: UrgencyLevel[] = ['STANDARD', 'STANDARD', 'STANDARD', 'PRIORITY
 function daysFromNow(n: number): Date {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  d.setHours([9, 10, 11, 13, 14, 15, 16][Math.floor(Math.random() * 7)], 0, 0, 0);
+  // Only afternoon hours to avoid any appointment crossing the 12–13 lunch break
+  d.setHours([13, 14, 15, 16][Math.floor(Math.random() * 4)], 0, 0, 0);
   return d;
 }
 
@@ -79,17 +79,17 @@ async function main() {
 
   const appts: { id: string; userId: string; email: string; name: string; status: string; scheduledAt: Date }[] = [];
 
-  // ── 10 PENDING (next 14 days) ─────────────────────────────────────────────
+  // ── 10 PENDING (next week +) — starts at +8 so they never land in the current week ──
   for (let i = 0; i < 10; i++) {
     const user = users[i % users.length];
     const a = await prisma.appointment.create({
       data: {
         userId: user.id,
         serviceId: service.id,
-        scheduledAt: daysFromNow(2 + i),
+        scheduledAt: daysFromNow(8 + i),
         status: 'PENDING',
         honeyVariety: pick(VARIETIES),
-        quantity: 5 + Math.floor(Math.random() * 20),
+        quantity: 4 + Math.floor(Math.random() * 9),  // 4–12 → 80–120 min, fits in afternoon
         urgencyLevel: pick(URGENCIES),
         apiarySource: pick(APIARIES),
         notes: Math.random() > 0.5 ? 'Acceso por ruta provincial. Avisar con anticipación.' : null,
@@ -98,17 +98,17 @@ async function main() {
     appts.push({ id: a.id, userId: user.id, email: user.email, name: user.name, status: 'PENDING', scheduledAt: a.scheduledAt });
   }
 
-  // ── 15 CONFIRMED (next 3 weeks) ────────────────────────────────────────────
+  // ── 15 CONFIRMED (next week +) ─────────────────────────────────────────────
   for (let i = 0; i < 15; i++) {
     const user = users[i % users.length];
     const a = await prisma.appointment.create({
       data: {
         userId: user.id,
         serviceId: service.id,
-        scheduledAt: daysFromNow(3 + i * 2),
+        scheduledAt: daysFromNow(9 + i * 2),
         status: 'CONFIRMED',
         honeyVariety: pick(VARIETIES),
-        quantity: 8 + Math.floor(Math.random() * 25),
+        quantity: 4 + Math.floor(Math.random() * 9),  // 4–12 → 80–120 min, fits in afternoon
         urgencyLevel: pick(URGENCIES),
         apiarySource: pick(APIARIES),
       },
@@ -125,17 +125,17 @@ async function main() {
     appts.push({ id: a.id, userId: user.id, email: user.email, name: user.name, status: 'CONFIRMED', scheduledAt: a.scheduledAt });
   }
 
-  // ── 3 IN_PROGRESS (this week) ─────────────────────────────────────────────
+  // ── 3 IN_PROGRESS (next week, not current) ───────────────────────────────
   for (let i = 0; i < 3; i++) {
     const user = users[i];
     await prisma.appointment.create({
       data: {
         userId: user.id,
         serviceId: service.id,
-        scheduledAt: daysFromNow(-1 + i),
+        scheduledAt: daysFromNow(7 + i),
         status: 'IN_PROGRESS',
         honeyVariety: pick(VARIETIES),
-        quantity: 12 + i * 3,
+        quantity: 6,
         urgencyLevel: 'STANDARD',
         apiarySource: pick(APIARIES),
       },
@@ -194,9 +194,105 @@ async function main() {
     });
   }
 
+  // ── OPTIMIZER TEST: 5 CONFIRMED in current week (one per day Mon–Fri) ────────
+  // quantity=8 → estimateDuration(8)=100min → ceil(100/30)=4 slots each
+  // Spread one per day so compaction is clearly visible (expected: Mon×3 + Tue×2)
+  function mondayOfCurrentWeek(): Date {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  const OPT_HOURS = [9, 10, 13, 14, 15];  // one per day, no midnight-crossing gaps
+  const monday = mondayOfCurrentWeek();
+  for (let i = 0; i < 5; i++) {
+    const user = users[i % users.length];
+    const apptDate = new Date(monday);
+    apptDate.setDate(monday.getDate() + i);   // Mon, Tue, Wed, Thu, Fri
+    apptDate.setHours(OPT_HOURS[i], 0, 0, 0);
+    await prisma.appointment.create({
+      data: {
+        userId: user.id,
+        serviceId: service.id,
+        scheduledAt: apptDate,
+        status: 'CONFIRMED',
+        honeyVariety: pick(VARIETIES),
+        quantity: 8,
+        urgencyLevel: 'STANDARD',
+        apiarySource: pick(APIARIES),
+        loteNumber: `900${i + 1}/26`,
+        loteDate: new Date(),
+      },
+    });
+  }
+
   console.log(`✓ Created ${users.length} clients`);
-  console.log(`✓ Seeded 50 appointments (10 PENDING, 15 CONFIRMED, 3 IN_PROGRESS, 15 COMPLETED, 7 CANCELLED)`);
+  console.log(`✓ Seeded 55 appointments (10 PENDING, 21 CONFIRMED, 3 IN_PROGRESS, 15 COMPLETED, 7 CANCELLED)`);
+  console.log(`✓ 5 CONFIRMED optimizer-test appointments in current week (Mon–Fri)`);
   console.log(`✓ Created notifications for actioned appointments`);
+
+  // ── Worker Clerk account + DB user ───────────────────────────────────────────
+  const workerClerkId = await ensureWorkerClerkAccount();
+  if (workerClerkId) {
+    await prisma.user.upsert({
+      where:  { id: workerClerkId },
+      update: { role: 'WORKER', email: 'worker@apiturn.com', name: 'Operario Planta' },
+      create: { id: workerClerkId, email: 'worker@apiturn.com', name: 'Operario Planta', role: 'WORKER' },
+    });
+    console.log(`✓ Worker DB user upserted (${workerClerkId})`);
+    console.log(`  → Add to .env.local:  WORKER_CLERK_USER_IDS=${workerClerkId}`);
+  }
+}
+
+// ─── Clerk worker account ─────────────────────────────────────────────────────
+
+async function ensureWorkerClerkAccount(): Promise<string | null> {
+  const sk = process.env.CLERK_SECRET_KEY;
+  if (!sk) {
+    console.warn('⚠  CLERK_SECRET_KEY not set — skipping worker Clerk account creation.');
+    return null;
+  }
+
+  const workerEmail = 'worker@apiturn.com';
+  const base = 'https://api.clerk.com/v1';
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${sk}`,
+    'Content-Type': 'application/json',
+  };
+
+  // Check if user already exists
+  const listRes = await fetch(`${base}/users?email_address=${workerEmail}`, { headers });
+  const list = await listRes.json() as { total_count: number; data: Array<{ id: string }> };
+
+  if (list.total_count > 0) {
+    console.log('✓ Worker Clerk account already exists');
+    return list.data[0].id;
+  }
+
+  // Create new user
+  const createRes = await fetch(`${base}/users`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      email_address: [workerEmail],
+      username: 'operario_planta',
+      password: 'WorkerApiturn2026!',
+      first_name: 'Operario',
+      last_name: 'Planta',
+      skip_password_checks: true,
+    }),
+  });
+  const created = await createRes.json() as { id?: string; errors?: unknown };
+
+  if (!created.id) {
+    console.error('✗ Failed to create Clerk worker account:', created.errors ?? created);
+    return null;
+  }
+
+  console.log(`✓ Created Clerk worker account: ${created.id}`);
+  return created.id;
 }
 
 main()

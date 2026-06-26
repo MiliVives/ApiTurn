@@ -3,26 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cormorant } from '@/app/ui/fonts';
+import { applyOptimizedSchedule } from '@/app/lib/actions';
+import type { ApptSummary, ProposedAppt } from './calendar-grid';
 
-type ApptSummary = {
-  id: string;
-  userId: string;
-  userName: string;
-  scheduledAt: string;
-  urgencyLevel: string;
-  quantity: number | null;
+type Props = {
+  appointments: ApptSummary[];
+  weekStartISO: string;
+  onResult: (proposed: ProposedAppt[], fitness: number) => void;
+  proposedSchedule: ProposedAppt[] | null;
+  fitness: number | null;
+  onClear: () => void;
 };
 
-type OptResult = {
-  fitness: number;
-  generations: number;
-  convergence: number;
-};
-
-const MOCK_RESULT: OptResult = { fitness: 94.2, generations: 4200, convergence: 0.98 };
-const HEX_VERSIONS = ['V.1', 'V.2', 'V.3', 'V.4', 'V.5', 'V.6'];
-
-// Shared styles
 const sectionTitle = {
   fontSize: '7px',
   letterSpacing: '0.4em',
@@ -30,31 +22,63 @@ const sectionTitle = {
   textTransform: 'uppercase' as const,
 };
 
-export function OptimizerPanel({ appointments }: { appointments: ApptSummary[] }) {
+const HEX_VERSIONS = ['V.1', 'V.2', 'V.3', 'V.4', 'V.5', 'V.6'];
+
+export function OptimizerPanel({
+  appointments,
+  weekStartISO,
+  onResult,
+  proposedSchedule,
+  fitness,
+  onClear,
+}: Props) {
   const router = useRouter();
-  const [result, setResult] = useState<OptResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeVersion, setActiveVersion] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   async function runOptimizer() {
     setRunning(true);
+    setError(null);
     try {
       const res = await fetch('/api/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointments }),
+        body: JSON.stringify({
+          appointments: appointments.map((a) => ({
+            id: a.id,
+            duration_min: a.durationMin,
+            urgency: a.urgencyLevel,
+            scheduled_at: a.scheduledAt,
+          })),
+          week_start: weekStartISO,
+        }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setResult({ fitness: data.fitness ?? MOCK_RESULT.fitness, generations: data.generations ?? MOCK_RESULT.generations, convergence: data.convergence ?? MOCK_RESULT.convergence });
-      } else {
-        setResult(MOCK_RESULT);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      onResult(data.proposed ?? [], data.fitness ?? 0);
     } catch {
-      setResult(MOCK_RESULT);
+      setError('No se pudo conectar con el servicio de optimización.');
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function handleApply() {
+    if (!proposedSchedule) return;
+    setApplying(true);
+    setError(null);
+    try {
+      await applyOptimizedSchedule(proposedSchedule);
+      onClear();
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido.';
+      setError(`No se pudo aplicar: ${msg}. Actualizá la página e intentá de nuevo.`);
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -64,6 +88,9 @@ export function OptimizerPanel({ appointments }: { appointments: ApptSummary[] }
     setTimeout(() => setRefreshing(false), 800);
   }
 
+  const fitnessDisplay = fitness !== null ? `${(fitness * 100).toFixed(1)}%` : '—';
+  const movedCount = proposedSchedule?.length ?? 0;
+
   return (
     <div className="flex flex-col h-full p-6 overflow-y-auto" style={{ backgroundColor: '#faf8f4' }}>
 
@@ -72,13 +99,16 @@ export function OptimizerPanel({ appointments }: { appointments: ApptSummary[] }
         <p style={sectionTitle} className="mb-3">EFICIENCIA DE APTITUD</p>
         <p
           className="text-5xl font-light tracking-tight"
-          style={{ color: result ? 'var(--gold)' : 'var(--border)', fontFamily: 'var(--font-cormorant, serif)' }}
+          style={{
+            color: fitness !== null ? 'var(--gold)' : 'var(--border)',
+            fontFamily: 'var(--font-cormorant, serif)',
+          }}
         >
-          {result ? `${result.fitness}%` : '—'}
+          {fitnessDisplay}
         </p>
-        {result && (
+        {fitness !== null && (
           <p className={`${cormorant.className} text-sm italic mt-2 leading-relaxed`} style={{ color: 'var(--muted)' }}>
-            Algoritmo genético ha priorizado extracción por urgencia y cercanía de apiario.
+            Algoritmo genético ha evaluado la distribución semanal.
           </p>
         )}
       </div>
@@ -132,15 +162,21 @@ export function OptimizerPanel({ appointments }: { appointments: ApptSummary[] }
         <p style={sectionTitle} className="mb-4">MÉTRICAS DEL SISTEMA</p>
         <div className="flex flex-col gap-2.5">
           {[
-            { label: 'Generaciones', value: result ? result.generations.toLocaleString() : '—' },
-            { label: 'Convergencia', value: result ? String(result.convergence) : '—' },
+            { label: 'Generaciones', value: fitness !== null ? '1' : '—' },
+            { label: 'Convergencia', value: fitness !== null ? fitness.toFixed(4) : '—' },
             { label: 'Turnos Analizados', value: String(appointments.length) },
+            { label: 'Turnos Reubicados', value: proposedSchedule !== null ? String(movedCount) : '—' },
           ].map(({ label, value }) => (
             <div key={label} className="flex justify-between items-baseline">
               <span className={`${cormorant.className} text-sm font-light italic`} style={{ color: 'var(--muted)' }}>
                 {label}
               </span>
-              <span className={`${cormorant.className} text-base font-light`} style={{ color: result || label === 'Turnos Analizados' ? 'var(--dark)' : 'var(--border)' }}>
+              <span
+                className={`${cormorant.className} text-base font-light`}
+                style={{
+                  color: label === 'Turnos Analizados' || fitness !== null ? 'var(--dark)' : 'var(--border)',
+                }}
+              >
                 {value}
               </span>
             </div>
@@ -148,8 +184,43 @@ export function OptimizerPanel({ appointments }: { appointments: ApptSummary[] }
         </div>
       </div>
 
+      {/* Error */}
+      {error && (
+        <p className="text-[9px] mb-4" style={{ color: '#c0392b' }}>{error}</p>
+      )}
+
+      {/* Proposed schedule actions */}
+      {proposedSchedule && (
+        <>
+          <div className="border-t mb-4" style={{ borderColor: 'var(--border)' }} />
+          <p className={`${cormorant.className} text-sm italic mb-4 leading-relaxed`} style={{ color: 'var(--muted)' }}>
+            {movedCount} turno{movedCount !== 1 ? 's' : ''} reubicado{movedCount !== 1 ? 's' : ''} en el calendario propuesto.
+          </p>
+        </>
+      )}
+
       {/* Buttons */}
       <div className="flex flex-col gap-2 mt-auto">
+        {proposedSchedule && (
+          <>
+            <button
+              onClick={handleApply}
+              disabled={applying}
+              className="w-full py-3 text-[9px] font-light tracking-[0.4em] transition-opacity hover:opacity-80 disabled:opacity-50"
+              style={{ backgroundColor: '#2f4858', color: '#ffffff' }}
+            >
+              {applying ? 'APLICANDO...' : 'APLICAR PROPUESTA'}
+            </button>
+            <button
+              onClick={onClear}
+              disabled={applying}
+              className="w-full py-2.5 text-[9px] font-light tracking-[0.3em] border transition-opacity hover:opacity-60 disabled:opacity-40"
+              style={{ borderColor: 'var(--border)', color: 'var(--muted)', backgroundColor: 'transparent' }}
+            >
+              DESCARTAR
+            </button>
+          </>
+        )}
         <button
           onClick={refreshCalendar}
           disabled={refreshing}

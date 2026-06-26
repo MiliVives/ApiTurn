@@ -14,12 +14,16 @@ export default clerkMiddleware(
   const { userId } = await auth();
   const { pathname } = req.nextUrl;
 
+  const workerIds = (process.env.WORKER_CLERK_USER_IDS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+
   if (userId) {
-    const isAdmin = userId === process.env.ADMIN_CLERK_USER_ID;
+    const isAdmin  = userId === process.env.ADMIN_CLERK_USER_ID;
+    const isWorker = workerIds.includes(userId);
 
     // Redirect away from login page once authenticated
     if (pathname === '/') {
-      return NextResponse.redirect(new URL(isAdmin ? '/admin/scheduler' : '/client', req.url));
+      const dest = isAdmin ? '/admin/scheduler' : isWorker ? '/worker/active' : '/client';
+      return NextResponse.redirect(new URL(dest, req.url));
     }
 
     // Redirect /admin exact to /admin/scheduler (skip layout double-render)
@@ -29,6 +33,11 @@ export default clerkMiddleware(
 
     // Block non-admins from /admin
     if (pathname.startsWith('/admin') && !isAdmin) {
+      return NextResponse.redirect(new URL('/client', req.url));
+    }
+
+    // Block non-workers (and non-admins) from /worker
+    if (pathname.startsWith('/worker') && !isWorker && !isAdmin) {
       return NextResponse.redirect(new URL('/client', req.url));
     }
   } else {

@@ -1,7 +1,7 @@
 import { prisma } from '@/app/lib/prisma';
 import { cormorant } from '@/app/ui/fonts';
 import Link from 'next/link';
-import { CalendarClient } from './calendar-client';
+import { CalendarGrid } from '@/app/admin/scheduler/calendar-grid';
 import { estimateDuration } from '@/app/lib/scheduling';
 
 function getWeekBounds(from: string | undefined): { weekStart: Date; weekEnd: Date } {
@@ -25,7 +25,7 @@ function toDateParam(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-export default async function SchedulerPage({
+export default async function WorkerSchedulePage({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string }>;
@@ -39,8 +39,11 @@ export default async function SchedulerPage({
   nextWeek.setDate(weekStart.getDate() + 7);
 
   const appointments = await prisma.appointment.findMany({
-    where: { scheduledAt: { gte: weekStart, lt: weekEnd } },
-    include: { user: true, service: true },
+    where: {
+      scheduledAt: { gte: weekStart, lt: weekEnd },
+      status: { in: ['CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS'] },
+    },
+    include: { user: true },
     orderBy: { scheduledAt: 'asc' },
   });
 
@@ -54,21 +57,20 @@ export default async function SchedulerPage({
 
   return (
     <div className="flex flex-col h-full min-h-screen">
-      {/* Page header */}
       <div className="px-8 pt-8 pb-5 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
         <p className="text-[9px] tracking-[0.4em] mb-1" style={{ color: 'var(--muted)' }}>
-          RESUMEN SEMANAL
+          PANEL DE PLANTA
         </p>
         <div className="flex items-end justify-between flex-wrap gap-4">
           <h1
             className={`${cormorant.className} text-4xl font-light tracking-wide`}
             style={{ color: 'var(--dark)' }}
           >
-            CICLO DE EXTRACCIÓN
+            HORARIO SEMANAL
           </h1>
           <div className="flex items-center gap-4">
             <Link
-              href={`/admin/scheduler?from=${toDateParam(prevWeek)}`}
+              href={`/worker/schedule?from=${toDateParam(prevWeek)}`}
               className="text-[9px] tracking-[0.3em] transition-opacity hover:opacity-60"
               style={{ color: 'var(--muted)' }}
             >
@@ -78,7 +80,7 @@ export default async function SchedulerPage({
               {dateRangeLabel.toUpperCase()}
             </span>
             <Link
-              href={`/admin/scheduler?from=${toDateParam(nextWeek)}`}
+              href={`/worker/schedule?from=${toDateParam(nextWeek)}`}
               className="text-[9px] tracking-[0.3em] transition-opacity hover:opacity-60"
               style={{ color: 'var(--muted)' }}
             >
@@ -88,10 +90,9 @@ export default async function SchedulerPage({
         </div>
       </div>
 
-      {/* Calendar + optimizer panel (client component) */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        <CalendarClient
-          appointments={appointments.map((a) => ({
+        <CalendarGrid
+          appointments={appointments.map(a => ({
             id: a.id,
             userId: a.userId,
             userName: a.user.name,
@@ -101,7 +102,7 @@ export default async function SchedulerPage({
             quantity: a.quantity,
             durationMin: estimateDuration(a.quantity ?? 0),
           }))}
-          weekStartISO={weekStart.toISOString()}
+          proposedSchedule={null}
           dayDates={dayDates}
         />
       </div>

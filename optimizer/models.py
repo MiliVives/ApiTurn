@@ -2,15 +2,17 @@ from pydantic import BaseModel
 from typing import Any
 
 
+# ─── Legacy models (kept for backwards compatibility) ────────────────────────
+
 class Appointment(BaseModel):
     id: str
-    scheduled_at: str       # ISO datetime
+    scheduled_at: str
     duration_min: int
-    priority: int = 0       # higher = more urgent
+    priority: int = 0
 
 
 class OptimizerConfig(BaseModel):
-    strategy: str = "earliest"  # "earliest" | "priority" | "shortest_job_first"
+    strategy: str = "earliest"
 
 
 class OptimizeRequest(BaseModel):
@@ -25,3 +27,28 @@ class OrderedAppointment(BaseModel):
 
 class OptimizeResponse(BaseModel):
     ordered: list[OrderedAppointment]
+
+
+# ─── Genetic optimizer models ─────────────────────────────────────────────────
+
+class ApptInput(BaseModel):
+    id: str
+    duration_min: int
+    urgency: str = "STANDARD"
+    scheduled_at: str | None = None  # ISO datetime — used to build Parent 1 from current schedule
+
+
+class GeneticRequest(BaseModel):
+    appointments: list[ApptInput]
+    week_start: str  # ISO datetime string (full, with timezone if available)
+
+
+class ProposedAppt(BaseModel):
+    id: str
+    suggested_date: str  # ISO datetime string
+
+
+class GeneticResponse(BaseModel):
+    proposed: list[ProposedAppt]
+    fitness: float
+    generations: int
