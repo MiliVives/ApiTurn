@@ -43,6 +43,11 @@ export function OptimizerPanel({
     setRunning(true);
     setError(null);
     try {
+      // Server weekStartISO is UTC midnight; optimizer must start from LOCAL midnight so
+      // its "+9h" lands at 09:00 local, matching how appointments are stored (local→UTC).
+      const datePart = weekStartISO.split('T')[0];
+      const localWeekStart = new Date(datePart + 'T00:00:00').toISOString();
+
       const res = await fetch('/api/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,7 +58,7 @@ export function OptimizerPanel({
             urgency: a.urgencyLevel,
             scheduled_at: a.scheduledAt,
           })),
-          week_start: weekStartISO,
+          week_start: localWeekStart,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
