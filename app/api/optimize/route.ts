@@ -5,14 +5,29 @@ const OPTIMIZER_URL = process.env.OPTIMIZER_URL ?? 'http://localhost:8000';
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
-  const res = await fetch(`${OPTIMIZER_URL}/optimize`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${OPTIMIZER_URL}/optimize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return NextResponse.json(
+      { error: 'No se pudo conectar con el servicio de optimización.' },
+      { status: 503 },
+    );
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return NextResponse.json(
+      { error: `El optimizador respondió con error ${res.status}.`, detail: text },
+      { status: res.status },
+    );
+  }
 
   const data = await res.json();
-  // Normalize Python snake_case → TypeScript camelCase
   const normalized = {
     ...data,
     proposed: (data.proposed ?? []).map((p: { id: string; suggested_date: string }) => ({
@@ -20,5 +35,5 @@ export async function POST(req: NextRequest) {
       suggestedDate: p.suggested_date,
     })),
   };
-  return NextResponse.json(normalized, { status: res.status });
+  return NextResponse.json(normalized);
 }
