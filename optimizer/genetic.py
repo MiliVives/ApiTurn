@@ -22,10 +22,11 @@ Slot mapping:
 """
 
 import math
+import random
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Tuple
 
-from chromosome import Chromosome, ChromosomeGenerator
+from chromosome import Chromosome
 from crossover import TwoLayerCrossover
 
 SLOT_MIN         = 30
@@ -237,13 +238,14 @@ def build_chromosome_from_current(
 
 
 def build_random_chromosome(appts: List[dict]) -> Chromosome:
-    """Parent 2: randomly arranged chromosome of the same appointments."""
-    sorted_appts = sorted(
-        appts,
-        key=lambda a: a.get("scheduled_at", ""),
-    )
-    clients = [(i + 1, appt_to_slots(a["duration_min"])) for i, a in enumerate(sorted_appts)]
-    return ChromosomeGenerator(clients).generate_random_chromosome()
+    """Parent 2: random day assignment, always with correct slot counts."""
+    sorted_appts = sorted(appts, key=lambda a: a.get("scheduled_at", ""))
+    matrix: List[Row] = [
+        (f"{i + 1:02d}", appt_to_slots(a["duration_min"]), random.randint(0, NUM_DAYS - 1))
+        for i, a in enumerate(sorted_appts)
+    ]
+    matrix.sort(key=lambda r: (r[2], r[0]))
+    return matrix_to_chromosome(compact_matrix(matrix))
 
 
 # ─── Schedule conversion ──────────────────────────────────────────────────────
