@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cormorant } from '@/app/ui/fonts';
-import { applyOptimizedSchedule } from '@/app/lib/actions';
 import type { ApptSummary, ProposedAppt } from './calendar-grid';
 
 type Props = {
@@ -13,6 +12,8 @@ type Props = {
   proposedSchedule: ProposedAppt[] | null;
   fitness: number | null;
   onClear: () => void;
+  onApply: () => Promise<void>;
+  applying: boolean;
 };
 
 const sectionTitle = {
@@ -31,10 +32,11 @@ export function OptimizerPanel({
   proposedSchedule,
   fitness,
   onClear,
+  onApply,
+  applying,
 }: Props) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
-  const [applying, setApplying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeVersion, setActiveVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -68,22 +70,6 @@ export function OptimizerPanel({
       setError('No se pudo conectar con el servicio de optimización.');
     } finally {
       setRunning(false);
-    }
-  }
-
-  async function handleApply() {
-    if (!proposedSchedule) return;
-    setApplying(true);
-    setError(null);
-    try {
-      await applyOptimizedSchedule(proposedSchedule);
-      onClear();
-      router.refresh();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido.';
-      setError(`No se pudo aplicar: ${msg}. Actualizá la página e intentá de nuevo.`);
-    } finally {
-      setApplying(false);
     }
   }
 
@@ -189,12 +175,12 @@ export function OptimizerPanel({
         </div>
       </div>
 
-      {/* Error */}
+      {/* Optimizer error */}
       {error && (
         <p className="text-[9px] mb-4" style={{ color: '#c0392b' }}>{error}</p>
       )}
 
-      {/* Proposed schedule actions */}
+      {/* Proposed schedule info */}
       {proposedSchedule && (
         <>
           <div className="border-t mb-4" style={{ borderColor: 'var(--border)' }} />
@@ -209,7 +195,7 @@ export function OptimizerPanel({
         {proposedSchedule && (
           <>
             <button
-              onClick={handleApply}
+              onClick={onApply}
               disabled={applying}
               className="w-full py-3 text-[9px] font-light tracking-[0.4em] transition-opacity hover:opacity-80 disabled:opacity-50"
               style={{ backgroundColor: '#2f4858', color: '#ffffff' }}
