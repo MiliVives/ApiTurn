@@ -63,20 +63,26 @@ class ChromosomeGenerator:
         schedule = [[] for _ in range(self.NUM_DAYS)]
 
         # Step 3: Assign clients to days starting from their random start day
+        # Each appointment goes on exactly ONE day (never split across days)
         for client_id, slots_required in self.clients:
             start_day = client_start_days[client_id]
-            remaining_slots = slots_required
-            current_day = start_day
-
-            # Distribute slots across consecutive days
-            while remaining_slots > 0 and current_day < self.NUM_DAYS:
-                available_in_day = self.SLOTS_PER_DAY - len(schedule[current_day])
-                slots_to_assign = min(remaining_slots, available_in_day)
-
-                # Add client gene: XXYY (XX=client_id, YY=slots)
-                schedule[current_day].append(f"{client_id:02d}{slots_to_assign:02d}")
-                remaining_slots -= slots_to_assign
-                current_day += 1
+            placed = False
+            # Try start_day first, then wrap through remaining days
+            for offset in range(self.NUM_DAYS):
+                current_day = (start_day + offset) % self.NUM_DAYS
+                used = sum(int(gene[2:4]) for gene in schedule[current_day])
+                available_in_day = self.SLOTS_PER_DAY - used
+                if available_in_day >= slots_required:
+                    schedule[current_day].append(f"{client_id:02d}{slots_required:02d}")
+                    placed = True
+                    break
+            if not placed:
+                # Fallback: place on the day with the most space
+                best_day = max(range(self.NUM_DAYS), key=lambda d: self.SLOTS_PER_DAY - sum(int(g[2:4]) for g in schedule[d]))
+                used = sum(int(gene[2:4]) for gene in schedule[best_day])
+                available = self.SLOTS_PER_DAY - used
+                if available > 0:
+                    schedule[best_day].append(f"{client_id:02d}{min(slots_required, available):02d}")
 
         # Step 4: Fill remaining slots with free space markers (LX)
         for day_idx in range(self.NUM_DAYS):

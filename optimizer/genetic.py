@@ -209,17 +209,24 @@ def build_chromosome_from_current(
     genes: List[str] = []
     for day_idx, day_appts in enumerate(days_appts):
         occupied = 0
+        carry: List[dict] = []
         for appt in day_appts:
             key = appt_to_key.get(appt["id"])
             if not key:
                 continue
-            slots     = appt_to_slots(appt["duration_min"])
-            available = SLOTS_PER_DAY - occupied
-            if available <= 0:
-                break
-            actual = min(slots, available)
-            genes.append(f"{key}{actual:02d}")
-            occupied += actual
+            slots = appt_to_slots(appt["duration_min"])
+            # Skip over the lunch break if this appointment would straddle it
+            if occupied < LUNCH_START_SLOT and occupied + slots > LUNCH_START_SLOT:
+                occupied = LUNCH_START_SLOT
+            # If it doesn't fit today, carry to tomorrow — never truncate
+            if occupied + slots > SLOTS_PER_DAY:
+                carry.append(appt)
+                continue
+            genes.append(f"{key}{slots:02d}")
+            occupied += slots
+        # Overflow appointments go to the next day
+        if day_idx + 1 < NUM_DAYS:
+            days_appts[day_idx + 1].extend(carry)
         free = SLOTS_PER_DAY - occupied
         if free > 0:
             genes.append(f"L{free}")
