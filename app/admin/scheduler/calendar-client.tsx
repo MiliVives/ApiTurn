@@ -74,15 +74,16 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 50,
-            padding: '0.6rem 1.5rem',
-            borderRadius: '2px',
-            backgroundColor: toast.type === 'success' ? 'var(--dark)' : '#a93226',
-            color: toast.type === 'success' ? 'var(--gold)' : '#fff',
-            fontSize: '9px',
-            letterSpacing: '0.3em',
-            fontWeight: 500,
+            padding: '0.5rem 1.25rem',
+            borderRadius: '9999px',
+            backgroundColor: toast.type === 'success' ? '#2e7d4f' : '#a93226',
+            color: '#fff',
+            fontSize: '10px',
+            letterSpacing: '0.2em',
+            fontWeight: 600,
             pointerEvents: 'none',
             whiteSpace: 'nowrap',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
           }}
         >
           {toast.msg.toUpperCase()}
