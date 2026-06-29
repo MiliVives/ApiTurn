@@ -194,9 +194,10 @@ async function main() {
     });
   }
 
-  // ── OPTIMIZER TEST: 5 CONFIRMED in current week (one per day Mon–Fri) ────────
-  // quantity=8 → estimateDuration(8)=100min → ceil(100/30)=4 slots each
-  // Spread one per day so compaction is clearly visible (expected: Mon×3 + Tue×2)
+  // ── OPTIMIZER TEST: 9 CONFIRMED in current week ───────────────────────────────
+  // 5 × qty=8 (4 slots, 100 min) one per day Mon–Fri
+  // 4 × qty=6 (3 slots,  90 min) on Wed–Fri
+  // Total: 32 slots → optimizer should compress to ~2 days
   function mondayOfCurrentWeek(): Date {
     const d = new Date();
     const day = d.getDay();
@@ -205,13 +206,28 @@ async function main() {
     d.setHours(0, 0, 0, 0);
     return d;
   }
-  const OPT_HOURS = [9, 10, 13, 14, 15];  // one per day, no midnight-crossing gaps
   const monday = mondayOfCurrentWeek();
-  for (let i = 0; i < 5; i++) {
+
+  const optAppts: { dayOffset: number; hour: number; qty: number; lote: string }[] = [
+    // Original 5 — one per day
+    { dayOffset: 0, hour:  9, qty: 8, lote: '9001/26' },  // Mon
+    { dayOffset: 1, hour: 10, qty: 8, lote: '9002/26' },  // Tue
+    { dayOffset: 2, hour: 13, qty: 8, lote: '9003/26' },  // Wed
+    { dayOffset: 3, hour: 14, qty: 8, lote: '9004/26' },  // Thu
+    { dayOffset: 4, hour: 15, qty: 8, lote: '9005/26' },  // Fri
+    // 4 extra on Wed–Fri — shorter (3 slots each)
+    { dayOffset: 2, hour:  9, qty: 6, lote: '9006/26' },  // Wed morning
+    { dayOffset: 3, hour:  9, qty: 6, lote: '9007/26' },  // Thu morning
+    { dayOffset: 4, hour:  9, qty: 6, lote: '9008/26' },  // Fri morning
+    { dayOffset: 4, hour: 13, qty: 6, lote: '9009/26' },  // Fri afternoon
+  ];
+
+  for (let i = 0; i < optAppts.length; i++) {
+    const { dayOffset, hour, qty, lote } = optAppts[i];
     const user = users[i % users.length];
     const apptDate = new Date(monday);
-    apptDate.setDate(monday.getDate() + i);   // Mon, Tue, Wed, Thu, Fri
-    apptDate.setHours(OPT_HOURS[i], 0, 0, 0);
+    apptDate.setDate(monday.getDate() + dayOffset);
+    apptDate.setHours(hour, 0, 0, 0);
     await prisma.appointment.create({
       data: {
         userId: user.id,
@@ -219,18 +235,18 @@ async function main() {
         scheduledAt: apptDate,
         status: 'CONFIRMED',
         honeyVariety: pick(VARIETIES),
-        quantity: 8,
+        quantity: qty,
         urgencyLevel: 'STANDARD',
         apiarySource: pick(APIARIES),
-        loteNumber: `900${i + 1}/26`,
+        loteNumber: lote,
         loteDate: new Date(),
       },
     });
   }
 
   console.log(`✓ Created ${users.length} clients`);
-  console.log(`✓ Seeded 55 appointments (10 PENDING, 21 CONFIRMED, 3 IN_PROGRESS, 15 COMPLETED, 7 CANCELLED)`);
-  console.log(`✓ 5 CONFIRMED optimizer-test appointments in current week (Mon–Fri)`);
+  console.log(`✓ Seeded 59 appointments (10 PENDING, 21 CONFIRMED, 3 IN_PROGRESS, 15 COMPLETED, 7 CANCELLED)`);
+  console.log(`✓ 9 CONFIRMED optimizer-test appointments in current week (5×4-slot Mon–Fri + 4×3-slot Wed–Fri)`);
   console.log(`✓ Created notifications for actioned appointments`);
 
   // ── Worker Clerk account + DB user ───────────────────────────────────────────
