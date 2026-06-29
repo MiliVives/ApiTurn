@@ -153,24 +153,44 @@ def horizontal_crossover(
 
 def compact_matrix(matrix: List[Row]) -> List[Tuple[str, int, int, int]]:
     """
-    Layer 2: pack all clients greedily into Mon→Tue→… respecting the lunch break.
-    Returns (client_key, slots, day_idx, slot_start) so matrix_to_chromosome can
-    insert intra-day L gaps (including the noon skip) into the chromosome.
+    Layer 2: pack appointments greedily into Mon→Tue→…, respecting the lunch break.
+    When the next appointment would straddle the lunch break, looks ahead in the
+    pending list for a shorter one that fits the remaining morning slots — filling
+    the gap before going to afternoon rather than leaving it empty.
+    Returns (client_key, slots, day_idx, slot_start).
     """
     result: List[Tuple[str, int, int, int]] = []
     current_day   = 0
     current_slots = 0
+    pending = list(matrix)
 
-    for client_key, slots, _ in matrix:
-        if current_slots < LUNCH_START_SLOT and current_slots + slots > LUNCH_START_SLOT:
+    while pending:
+        client_key, slots, _ = pending[0]
+        remaining_morning = max(0, LUNCH_START_SLOT - current_slots)
+
+        # Appointment straddles lunch — try to fill the morning gap first.
+        if remaining_morning > 0 and slots > remaining_morning:
+            fill_idx = next(
+                (j for j, (_, s, _) in enumerate(pending) if s <= remaining_morning),
+                None,
+            )
+            if fill_idx is not None:
+                pending.insert(0, pending.pop(fill_idx))
+                continue
+            # Nothing fits in remaining morning — skip to afternoon.
             current_slots = LUNCH_START_SLOT
+            continue
+
         if current_slots + slots > SLOTS_PER_DAY:
             current_day  += 1
             current_slots = 0
-        if current_day >= NUM_DAYS:
-            break
+            if current_day >= NUM_DAYS:
+                break
+            continue
+
         result.append((client_key, slots, current_day, current_slots))
         current_slots += slots
+        pending.pop(0)
 
     return result
 
