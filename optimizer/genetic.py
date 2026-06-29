@@ -312,18 +312,13 @@ def chromosome_to_schedule(
 
 # ─── Fitness ──────────────────────────────────────────────────────────────────
 
-def calculate_fitness(chromosome: Chromosome) -> float:
+def calculate_fitness(chromosome: Chromosome) -> Tuple[float, float, float]:
     """
-    fitness = 0.6 × used_day_utilization  +  0.4 × day_reduction
+    Returns (total_fitness, util_component, reduction_component).
 
-    used_day_utilization: total slots / (used_days × 16)
-      — rewards filling each busy day as completely as possible
-    day_reduction: (NUM_DAYS − used_days) / (NUM_DAYS − 1)
-      — rewards having fewer busy days (more fully free days)
-
-    This ensures compact schedules (e.g. [13,16,0,0,0]) score higher than
-    scattered ones (e.g. [10,4,5,5,5]), which the old stdev-based balance
-    metric penalised because empty days inflate variance.
+    total_fitness = util_component + reduction_component
+    util_component     = 0.6 × (total_slots / (used_days × 16))  — rewards full days
+    reduction_component = 0.4 × ((NUM_DAYS − used_days) / (NUM_DAYS − 1))  — rewards free days
     """
     days, _ = TwoLayerCrossover.parse_chromosome(chromosome.genes)
     per_day: List[int] = []
@@ -334,13 +329,15 @@ def calculate_fitness(chromosome: Chromosome) -> float:
         total += s
 
     if total == 0:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
-    used_days      = sum(1 for s in per_day if s > 0)
-    used_day_util  = total / (used_days * SLOTS_PER_DAY)
-    day_reduction  = (NUM_DAYS - used_days) / (NUM_DAYS - 1) if NUM_DAYS > 1 else 1.0
+    used_days           = sum(1 for s in per_day if s > 0)
+    used_day_util       = total / (used_days * SLOTS_PER_DAY)
+    day_reduction       = (NUM_DAYS - used_days) / (NUM_DAYS - 1) if NUM_DAYS > 1 else 1.0
+    util_component      = round(0.6 * used_day_util, 4)
+    reduction_component = round(0.4 * day_reduction, 4)
 
-    return round(0.6 * used_day_util + 0.4 * day_reduction, 4)
+    return round(util_component + reduction_component, 4), util_component, reduction_component
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
@@ -389,9 +386,18 @@ def optimize(appts: List[dict], week_start_iso: str) -> dict:
     child2 = matrix_to_chromosome(compact_matrix(sorted(child2_matrix, key=_by_orig_day)))
 
     # Pick the better child
-    f1, f2     = calculate_fitness(child1), calculate_fitness(child2)
-    best       = child1 if f1 >= f2 else child2
-    best_fitness = max(f1, f2)
+    f1, f1_util, f1_red = calculate_fitness(child1)
+    f2, f2_util, f2_red = calculate_fitness(child2)
+    if f1 >= f2:
+        best, best_fitness, best_util, best_red = child1, f1, f1_util, f1_red
+    else:
+        best, best_fitness, best_util, best_red = child2, f2, f2_util, f2_red
 
     proposed = chromosome_to_schedule(best, index_map, week_start_iso)
-    return {"proposed": proposed, "fitness": best_fitness, "generations": 1}
+    return {
+        "proposed":          proposed,
+        "fitness":           best_fitness,
+        "fitness_util":      best_util,
+        "fitness_reduction": best_red,
+        "generations":       1,
+    }

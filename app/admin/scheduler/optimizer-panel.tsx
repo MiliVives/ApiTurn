@@ -8,18 +8,21 @@ import type { ApptSummary, ProposedAppt } from './calendar-grid';
 type Props = {
   appointments: ApptSummary[];
   weekStartISO: string;
-  onResult: (proposed: ProposedAppt[], fitness: number) => void;
+  onResult: (proposed: ProposedAppt[], fitness: number, fitnessUtil: number, fitnessReduction: number) => void;
   proposedSchedule: ProposedAppt[] | null;
   fitness: number | null;
+  fitnessUtil: number | null;
+  fitnessReduction: number | null;
   onClear: () => void;
   onApply: () => Promise<void>;
   applying: boolean;
 };
 
 const sectionTitle = {
-  fontSize: '7px',
-  letterSpacing: '0.4em',
-  color: 'rgba(138,122,106,0.45)',
+  fontSize: '8px',
+  letterSpacing: '0.3em',
+  color: 'rgba(26,18,8,0.6)',
+  fontWeight: 500,
   textTransform: 'uppercase' as const,
 };
 
@@ -31,6 +34,8 @@ export function OptimizerPanel({
   onResult,
   proposedSchedule,
   fitness,
+  fitnessUtil,
+  fitnessReduction,
   onClear,
   onApply,
   applying,
@@ -65,7 +70,7 @@ export function OptimizerPanel({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      onResult(data.proposed ?? [], data.fitness ?? 0);
+      onResult(data.proposed ?? [], data.fitness ?? 0, data.fitness_util ?? 0, data.fitness_reduction ?? 0);
     } catch {
       setError('No se pudo conectar con el servicio de optimización.');
     } finally {
@@ -87,7 +92,7 @@ export function OptimizerPanel({
 
       {/* Fitness */}
       <div className="mb-6">
-        <p style={sectionTitle} className="mb-3">EFICIENCIA DE APTITUD</p>
+        <p style={sectionTitle} className="mb-3">EFICIENCIA DE APTITUD (FITNESS)</p>
         <p
           className="text-5xl font-light tracking-tight"
           style={{
@@ -97,14 +102,30 @@ export function OptimizerPanel({
         >
           {fitnessDisplay}
         </p>
-        {fitness !== null && (
-          <p className={`${cormorant.className} text-sm italic mt-2 leading-relaxed`} style={{ color: 'var(--muted)' }}>
-            Algoritmo genético ha evaluado la distribución semanal.
-          </p>
+        {fitness !== null && fitnessUtil !== null && fitnessReduction !== null && (
+          <div className="mt-4 flex flex-col gap-2">
+            {[
+              { label: 'Utilización', value: fitnessUtil, weight: '×0.6', title: 'Qué tan llenos están los días ocupados' },
+              { label: 'Días libres', value: fitnessReduction, weight: '×0.4', title: 'Cuántos días quedan sin turnos' },
+            ].map(({ label, value, weight, title }) => (
+              <div key={label} title={title}>
+                <div className="flex justify-between items-baseline mb-1">
+                  <span className={`${cormorant.className} text-xs italic`} style={{ color: 'var(--muted)' }}>{label}</span>
+                  <span className="text-[8px] tracking-[0.1em]" style={{ color: 'var(--gold)' }}>
+                    {(value * 100).toFixed(1)}% <span style={{ color: 'var(--muted)', opacity: 0.6 }}>{weight}</span>
+                  </span>
+                </div>
+                <div className="w-full h-px" style={{ backgroundColor: 'var(--border)' }}>
+                  <div
+                    className="h-px transition-all duration-500"
+                    style={{ width: `${Math.min(100, value * 100 / (label === 'Utilización' ? 0.6 : 0.4))}%`, backgroundColor: 'var(--gold)' }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      <div className="border-t mb-5" style={{ borderColor: 'var(--border)' }} />
 
       {/* Parameters */}
       <div className="mb-5">

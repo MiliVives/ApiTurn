@@ -17,6 +17,8 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
   const [liveAppointments, setLiveAppointments] = useState<ApptSummary[]>(appointments);
   const [proposed, setProposed] = useState<ProposedAppt[] | null>(null);
   const [fitness, setFitness] = useState<number | null>(null);
+  const [fitnessUtil, setFitnessUtil] = useState<number | null>(null);
+  const [fitnessReduction, setFitnessReduction] = useState<number | null>(null);
   const [applying, setApplying] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -25,14 +27,18 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
     setLiveAppointments(appointments);
   }, [appointments]);
 
-  function handleResult(p: ProposedAppt[], f: number) {
+  function handleResult(p: ProposedAppt[], f: number, fUtil: number, fRed: number) {
     setProposed(p);
     setFitness(f);
+    setFitnessUtil(fUtil);
+    setFitnessReduction(fRed);
   }
 
   function handleClear() {
     setProposed(null);
     setFitness(null);
+    setFitnessUtil(null);
+    setFitnessReduction(null);
   }
 
   function showToast(type: 'success' | 'error', msg: string) {
@@ -109,6 +115,8 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
             onResult={handleResult}
             proposedSchedule={proposed}
             fitness={fitness}
+            fitnessUtil={fitnessUtil}
+            fitnessReduction={fitnessReduction}
             onClear={handleClear}
             onApply={handleApply}
             applying={applying}
