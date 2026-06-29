@@ -45,6 +45,12 @@ function heightPx(durationMin: number): number {
   return Math.max(20, (durationMin / 60) * HOUR_HEIGHT);
 }
 
+function fmtDuration(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? (m > 0 ? `${h}h ${m}min` : `${h}h`) : `${m}min`;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CalendarGrid({ appointments, proposedSchedule, dayDates }: Props) {
@@ -159,60 +165,96 @@ export function CalendarGrid({ appointments, proposedSchedule, dayDates }: Props
               />
 
               {/* Current appointments */}
-              {baseAppts.map(appt => (
-                <div
-                  key={appt.id}
-                  className="absolute rounded-sm px-1.5 pt-1 overflow-hidden"
-                  style={{
-                    top:    topPx(appt.scheduledAt) + 1,
-                    height: heightPx(appt.durationMin) - 2,
-                    left:   2,
-                    right:  2,
-                    opacity: proposedSchedule && movedIds.has(appt.id) ? 0.15 : 1,
-                    backgroundColor: 'rgba(201,168,76,0.08)',
-                    border: '1px solid var(--border)',
-                    borderLeft: '2px solid var(--gold)',
-                    zIndex: 1,
-                    transition: 'opacity 0.2s',
-                  }}
-                >
-                  <p className="text-[9px] font-medium leading-tight truncate" style={{ color: 'var(--dark)' }}>
-                    {appt.userName}
-                  </p>
-                  {appt.honeyVariety && heightPx(appt.durationMin) > 38 && (
-                    <p className="text-[8px] italic mt-0.5 leading-tight truncate" style={{ color: 'var(--muted)' }}>
-                      {appt.honeyVariety}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {baseAppts.map(appt => {
+                const tp = topPx(appt.scheduledAt);
+                return (
+                  <div
+                    key={appt.id}
+                    className="group absolute"
+                    style={{ top: tp + 1, height: heightPx(appt.durationMin) - 2, left: 2, right: 2, zIndex: 1 }}
+                  >
+                    <div
+                      className="rounded-sm px-1.5 pt-1 overflow-hidden h-full"
+                      style={{
+                        opacity: proposedSchedule && movedIds.has(appt.id) ? 0.15 : 1,
+                        backgroundColor: 'rgba(201,168,76,0.08)',
+                        border: '1px solid var(--border)',
+                        borderLeft: '2px solid var(--gold)',
+                        transition: 'opacity 0.2s',
+                      }}
+                    >
+                      <p className="text-[9px] font-medium leading-tight truncate" style={{ color: 'var(--dark)' }}>
+                        {appt.userName}
+                      </p>
+                      {appt.honeyVariety && heightPx(appt.durationMin) > 38 && (
+                        <p className="text-[8px] italic mt-0.5 leading-tight truncate" style={{ color: 'var(--muted)' }}>
+                          {appt.honeyVariety}
+                        </p>
+                      )}
+                    </div>
+                    <div
+                      className="hidden group-hover:block absolute left-0 pointer-events-none z-50"
+                      style={{
+                        ...(tp < 26 ? { top: 'calc(100% + 3px)' } : { bottom: 'calc(100% + 3px)' }),
+                        backgroundColor: 'var(--dark)',
+                        color: 'var(--cream)',
+                        fontSize: '8px',
+                        letterSpacing: '0.15em',
+                        padding: '3px 8px',
+                        borderRadius: '3px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {fmtDuration(appt.durationMin)}
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Proposed appointments overlay */}
-              {proposedAppts.map(appt => (
-                <div
-                  key={`proposed-${appt.id}`}
-                  className="absolute rounded-sm px-1.5 pt-1 overflow-hidden"
-                  style={{
-                    top:    topPx(appt.scheduledAt) + 2,
-                    height: heightPx(appt.durationMin) - 4,
-                    left:   4,
-                    right:  4,
-                    backgroundColor: 'rgba(47,72,88,0.18)',
-                    border: '1px solid rgba(47,72,88,0.5)',
-                    borderLeft: '3px solid #2f4858',
-                    zIndex: 2,
-                  }}
-                >
-                  <p className="text-[9px] font-semibold leading-tight truncate" style={{ color: '#2f4858' }}>
-                    {appt.userName}
-                  </p>
-                  {appt.honeyVariety && heightPx(appt.durationMin) > 38 && (
-                    <p className="text-[8px] italic mt-0.5 leading-tight truncate" style={{ color: 'rgba(47,72,88,0.7)' }}>
-                      {appt.honeyVariety}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {proposedAppts.map(appt => {
+                const tp = topPx(appt.scheduledAt);
+                return (
+                  <div
+                    key={`proposed-${appt.id}`}
+                    className="group absolute"
+                    style={{ top: tp + 2, height: heightPx(appt.durationMin) - 4, left: 4, right: 4, zIndex: 2 }}
+                  >
+                    <div
+                      className="rounded-sm px-1.5 pt-1 overflow-hidden h-full"
+                      style={{
+                        backgroundColor: 'rgba(47,72,88,0.18)',
+                        border: '1px solid rgba(47,72,88,0.5)',
+                        borderLeft: '3px solid #2f4858',
+                      }}
+                    >
+                      <p className="text-[9px] font-semibold leading-tight truncate" style={{ color: '#2f4858' }}>
+                        {appt.userName}
+                      </p>
+                      {appt.honeyVariety && heightPx(appt.durationMin) > 38 && (
+                        <p className="text-[8px] italic mt-0.5 leading-tight truncate" style={{ color: 'rgba(47,72,88,0.7)' }}>
+                          {appt.honeyVariety}
+                        </p>
+                      )}
+                    </div>
+                    <div
+                      className="hidden group-hover:block absolute left-0 pointer-events-none z-50"
+                      style={{
+                        ...(tp < 26 ? { top: 'calc(100% + 3px)' } : { bottom: 'calc(100% + 3px)' }),
+                        backgroundColor: '#2f4858',
+                        color: '#fff',
+                        fontSize: '8px',
+                        letterSpacing: '0.15em',
+                        padding: '3px 8px',
+                        borderRadius: '3px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {fmtDuration(appt.durationMin)}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
         })}

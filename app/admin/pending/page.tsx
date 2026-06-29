@@ -91,7 +91,7 @@ export default async function PendingPage() {
                     { label: 'APIARIO',      value: appt.apiarySource || '—' },
                     { label: 'VARIEDAD',     value: appt.honeyVariety || '—' },
                     { label: 'TOTAL ALZAS',  value: totalFrames > 0 ? `${totalFrames}` : appt.quantity ? `${appt.quantity}` : '—' },
-                    { label: 'SOLICITADO',   value: appt.createdAt.toLocaleDateString('es-AR', { dateStyle: 'medium' }) },
+                    { label: 'TURNO PEDIDO', value: appt.scheduledAt.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'medium', timeStyle: 'short' }) },
                   ].map(({ label, value }) => (
                     <div key={label}>
                       <p className="text-[8px] tracking-[0.25em] mb-1" style={{ color: 'var(--muted)' }}>{label}</p>
@@ -188,6 +188,7 @@ export default async function PendingPage() {
                       type="datetime-local"
                       name="newDate"
                       required
+                      defaultValue={appt.scheduledAt.toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(' ', 'T').slice(0, 16)}
                       className="text-[9px] px-2 py-2 border outline-none"
                       style={{ borderColor: 'var(--border)', color: 'var(--dark)', backgroundColor: 'transparent' }}
                     />

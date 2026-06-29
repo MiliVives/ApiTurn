@@ -23,7 +23,7 @@ const sectionTitle = {
   textTransform: 'uppercase' as const,
 };
 
-const HEX_VERSIONS = ['V.1', 'V.2', 'V.3', 'V.4', 'V.5', 'V.6'];
+const HEX_VERSIONS = ['V.1', 'V.2', 'V.3', 'V.4'];
 
 export function OptimizerPanel({
   appointments,

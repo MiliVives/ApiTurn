@@ -48,7 +48,7 @@ export default async function AppointmentDetailPage({ params }: { params: Promis
     { label: 'APIARIO',       value: appt.apiarySource ?? '—' },
     { label: 'VARIEDAD',      value: appt.honeyVariety ?? '—' },
     { label: 'URGENCIA',      value: URGENCY_LABELS[appt.urgencyLevel] },
-    { label: 'FECHA SOLICIT.', value: appt.scheduledAt.toLocaleDateString('es-AR', { dateStyle: 'long' }) },
+    { label: 'TURNO PEDIDO',  value: appt.scheduledAt.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'long', timeStyle: 'short' }) },
     { label: 'CREADO',        value: appt.createdAt.toLocaleDateString('es-AR', { dateStyle: 'medium' }) },
     ...(appt.loteNumber ? [
       { label: 'LOTE', value: appt.loteNumber },
@@ -213,6 +213,7 @@ export default async function AppointmentDetailPage({ params }: { params: Promis
                 type="datetime-local"
                 name="newDate"
                 required
+                defaultValue={appt.scheduledAt.toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(' ', 'T').slice(0, 16)}
                 className="text-[9px] px-2 py-2 border outline-none"
                 style={{ borderColor: 'var(--border)', color: 'var(--dark)', backgroundColor: 'transparent' }}
               />
