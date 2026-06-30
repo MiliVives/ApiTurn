@@ -51,4 +51,6 @@ class ProposedAppt(BaseModel):
 class GeneticResponse(BaseModel):
     proposed: list[ProposedAppt]
     fitness: float
+    fitness_util: float = 0.0
+    fitness_reduction: float = 0.0
     generations: int
