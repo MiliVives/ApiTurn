@@ -312,32 +312,51 @@ def chromosome_to_schedule(
 
 # ─── Fitness ──────────────────────────────────────────────────────────────────
 
-def calculate_fitness(chromosome: Chromosome) -> Tuple[float, float, float]:
+def calculate_fitness(chromosome: Chromosome) -> Tuple[float, float, float, float]:
     """
-    Returns (total_fitness, util_component, reduction_component).
+    Returns (total_fitness, util_component, reduction_component, compactness_component).
 
-    total_fitness = util_component + reduction_component
-    util_component     = 0.6 × (total_slots / (used_days × 16))  — rewards full days
-    reduction_component = 0.4 × ((NUM_DAYS − used_days) / (NUM_DAYS − 1))  — rewards free days
+    fitness = 0.5 × util  +  0.3 × day_reduction  +  0.2 × compactness
+    util        = total_slots / (used_days × 16)  — rewards full days
+    day_reduction = (NUM_DAYS − used_days) / (NUM_DAYS − 1)  — rewards fewer busy days
+    compactness = 1 − dead_slots / (used_days × 16)  — penalizes gaps trapped between appointments
     """
     days, _ = TwoLayerCrossover.parse_chromosome(chromosome.genes)
     per_day: List[int] = []
-    total = 0
+    total      = 0
+    dead_total = 0
+
     for day_genes in days:
         s = sum(int(g[2:4]) for g in day_genes if g[0] != "L")
         per_day.append(s)
         total += s
 
+        # Dead slots: L genes that appear BEFORE the last appointment gene on this day.
+        # L genes AFTER the last appointment (trailing) are end-of-day free capacity — not penalized.
+        last_appt_idx = max(
+            (i for i, g in enumerate(day_genes) if g[0] != "L"),
+            default=-1,
+        )
+        if last_appt_idx >= 0:
+            dead_total += sum(
+                int(g[1:])
+                for i, g in enumerate(day_genes)
+                if g[0] == "L" and i < last_appt_idx
+            )
+
     if total == 0:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
 
-    used_days           = sum(1 for s in per_day if s > 0)
-    used_day_util       = total / (used_days * SLOTS_PER_DAY)
-    day_reduction       = (NUM_DAYS - used_days) / (NUM_DAYS - 1) if NUM_DAYS > 1 else 1.0
-    util_component      = round(0.6 * used_day_util, 4)
-    reduction_component = round(0.4 * day_reduction, 4)
+    used_days     = sum(1 for s in per_day if s > 0)
+    used_day_util = total / (used_days * SLOTS_PER_DAY)
+    day_reduction = (NUM_DAYS - used_days) / (NUM_DAYS - 1) if NUM_DAYS > 1 else 1.0
+    compactness   = 1.0 - dead_total / (used_days * SLOTS_PER_DAY)
 
-    return round(util_component + reduction_component, 4), util_component, reduction_component
+    util_comp    = round(0.5 * used_day_util, 4)
+    red_comp     = round(0.3 * day_reduction, 4)
+    compact_comp = round(0.2 * compactness, 4)
+
+    return round(util_comp + red_comp + compact_comp, 4), util_comp, red_comp, compact_comp
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
@@ -348,7 +367,7 @@ def optimize(appts: List[dict], week_start_iso: str) -> dict:
     Returns the better of the two children as the proposed schedule.
     """
     if not appts:
-        return {"proposed": [], "fitness": 0.0, "generations": 0}
+        return {"proposed": [], "fitness": 0.0, "fitness_util": 0.0, "fitness_reduction": 0.0, "fitness_compactness": 0.0, "generations": 0}
 
     # Cap to 80 slots (5 days × 16) — more appointments than this can't be compacted
     total_slots = sum(appt_to_slots(a["duration_min"]) for a in appts)
@@ -386,18 +405,19 @@ def optimize(appts: List[dict], week_start_iso: str) -> dict:
     child2 = matrix_to_chromosome(compact_matrix(sorted(child2_matrix, key=_by_orig_day)))
 
     # Pick the better child
-    f1, f1_util, f1_red = calculate_fitness(child1)
-    f2, f2_util, f2_red = calculate_fitness(child2)
+    f1, f1_util, f1_red, f1_comp = calculate_fitness(child1)
+    f2, f2_util, f2_red, f2_comp = calculate_fitness(child2)
     if f1 >= f2:
-        best, best_fitness, best_util, best_red = child1, f1, f1_util, f1_red
+        best, best_fitness, best_util, best_red, best_comp = child1, f1, f1_util, f1_red, f1_comp
     else:
-        best, best_fitness, best_util, best_red = child2, f2, f2_util, f2_red
+        best, best_fitness, best_util, best_red, best_comp = child2, f2, f2_util, f2_red, f2_comp
 
     proposed = chromosome_to_schedule(best, index_map, week_start_iso)
     return {
-        "proposed":          proposed,
-        "fitness":           best_fitness,
-        "fitness_util":      best_util,
-        "fitness_reduction": best_red,
-        "generations":       1,
+        "proposed":            proposed,
+        "fitness":             best_fitness,
+        "fitness_util":        best_util,
+        "fitness_reduction":   best_red,
+        "fitness_compactness": best_comp,
+        "generations":         1,
     }

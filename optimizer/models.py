@@ -53,4 +53,5 @@ class GeneticResponse(BaseModel):
     fitness: float
     fitness_util: float = 0.0
     fitness_reduction: float = 0.0
+    fitness_compactness: float = 0.0
     generations: int

@@ -8,11 +8,12 @@ import type { ApptSummary, ProposedAppt } from './calendar-grid';
 type Props = {
   appointments: ApptSummary[];
   weekStartISO: string;
-  onResult: (proposed: ProposedAppt[], fitness: number, fitnessUtil: number, fitnessReduction: number) => void;
+  onResult: (proposed: ProposedAppt[], fitness: number, fitnessUtil: number, fitnessReduction: number, fitnessCompactness: number) => void;
   proposedSchedule: ProposedAppt[] | null;
   fitness: number | null;
   fitnessUtil: number | null;
   fitnessReduction: number | null;
+  fitnessCompactness: number | null;
   onClear: () => void;
   onApply: () => Promise<void>;
   applying: boolean;
@@ -36,6 +37,7 @@ export function OptimizerPanel({
   fitness,
   fitnessUtil,
   fitnessReduction,
+  fitnessCompactness,
   onClear,
   onApply,
   applying,
@@ -70,7 +72,7 @@ export function OptimizerPanel({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      onResult(data.proposed ?? [], data.fitness ?? 0, data.fitness_util ?? 0, data.fitness_reduction ?? 0);
+      onResult(data.proposed ?? [], data.fitness ?? 0, data.fitness_util ?? 0, data.fitness_reduction ?? 0, data.fitness_compactness ?? 0);
     } catch {
       setError('No se pudo conectar con el servicio de optimización.');
     } finally {
@@ -102,12 +104,13 @@ export function OptimizerPanel({
         >
           {fitnessDisplay}
         </p>
-        {fitness !== null && fitnessUtil !== null && fitnessReduction !== null && (
+        {fitness !== null && fitnessUtil !== null && fitnessReduction !== null && fitnessCompactness !== null && (
           <div className="mt-4 flex flex-col gap-2">
             {[
-              { label: 'Utilización', value: fitnessUtil, weight: '×0.6', title: 'Qué tan llenos están los días ocupados' },
-              { label: 'Días libres', value: fitnessReduction, weight: '×0.4', title: 'Cuántos días quedan sin turnos' },
-            ].map(({ label, value, weight, title }) => (
+              { label: 'Utilización',  value: fitnessUtil,        weight: '×0.5', maxWeight: 0.5, title: 'Qué tan llenos están los días ocupados' },
+              { label: 'Días libres',  value: fitnessReduction,   weight: '×0.3', maxWeight: 0.3, title: 'Cuántos días quedan sin turnos' },
+              { label: 'Compactación', value: fitnessCompactness, weight: '×0.2', maxWeight: 0.2, title: 'Sin espacios muertos entre turnos' },
+            ].map(({ label, value, weight, maxWeight, title }) => (
               <div key={label} title={title}>
                 <div className="flex justify-between items-baseline mb-1">
                   <span className={`${cormorant.className} text-xs italic`} style={{ color: 'var(--muted)' }}>{label}</span>
@@ -118,7 +121,7 @@ export function OptimizerPanel({
                 <div className="w-full h-px" style={{ backgroundColor: 'var(--border)' }}>
                   <div
                     className="h-px transition-all duration-500"
-                    style={{ width: `${Math.min(100, value * 100 / (label === 'Utilización' ? 0.6 : 0.4))}%`, backgroundColor: 'var(--gold)' }}
+                    style={{ width: `${Math.min(100, value * 100 / maxWeight)}%`, backgroundColor: 'var(--gold)' }}
                   />
                 </div>
               </div>

@@ -19,6 +19,7 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
   const [fitness, setFitness] = useState<number | null>(null);
   const [fitnessUtil, setFitnessUtil] = useState<number | null>(null);
   const [fitnessReduction, setFitnessReduction] = useState<number | null>(null);
+  const [fitnessCompactness, setFitnessCompactness] = useState<number | null>(null);
   const [applying, setApplying] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -27,11 +28,12 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
     setLiveAppointments(appointments);
   }, [appointments]);
 
-  function handleResult(p: ProposedAppt[], f: number, fUtil: number, fRed: number) {
+  function handleResult(p: ProposedAppt[], f: number, fUtil: number, fRed: number, fComp: number) {
     setProposed(p);
     setFitness(f);
     setFitnessUtil(fUtil);
     setFitnessReduction(fRed);
+    setFitnessCompactness(fComp);
   }
 
   function handleClear() {
@@ -39,6 +41,7 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
     setFitness(null);
     setFitnessUtil(null);
     setFitnessReduction(null);
+    setFitnessCompactness(null);
   }
 
   function showToast(type: 'success' | 'error', msg: string) {
@@ -117,6 +120,7 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
             fitness={fitness}
             fitnessUtil={fitnessUtil}
             fitnessReduction={fitnessReduction}
+            fitnessCompactness={fitnessCompactness}
             onClear={handleClear}
             onApply={handleApply}
             applying={applying}
