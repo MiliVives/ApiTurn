@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { cormorant } from '@/app/ui/fonts';
 import type { ApptSummary, ProposedAppt } from './calendar-grid';
@@ -20,6 +20,58 @@ type Props = {
   onApply: () => Promise<void>;
   applying: boolean;
 };
+
+type FitnessBreakdown = { total: number; util: number; reduction: number; compactness: number };
+
+function computeCurrentFitness(appointments: ApptSummary[]): FitnessBreakdown {
+  const byDay = new Map<number, Array<{ startSlot: number; slotCount: number }>>();
+
+  for (const appt of appointments) {
+    const dow = new Date(appt.scheduledAt).getDay();
+    const day = dow === 0 ? 6 : dow - 1;
+    if (day > 4) continue;
+
+    const d = new Date(appt.scheduledAt);
+    const totalMin = d.getHours() * 60 + d.getMinutes();
+    let startSlot: number;
+    if (totalMin < 12 * 60) {
+      startSlot = Math.floor((totalMin - 9 * 60) / 30);
+    } else if (totalMin >= 13 * 60) {
+      startSlot = Math.floor((totalMin - 9 * 60 - 60) / 30);
+    } else {
+      continue;
+    }
+    if (startSlot < 0 || startSlot >= 16) continue;
+
+    const slotCount = Math.max(1, Math.min(16, Math.ceil(appt.durationMin / 30)));
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day)!.push({ startSlot, slotCount });
+  }
+
+  if (byDay.size === 0) return { total: 0, util: 0, reduction: 0, compactness: 0 };
+
+  let totalSlots = 0;
+  let deadSlots = 0;
+
+  for (const appts of byDay.values()) {
+    appts.sort((a, b) => a.startSlot - b.startSlot);
+    for (const { slotCount } of appts) totalSlots += slotCount;
+    for (let i = 1; i < appts.length; i++) {
+      const gap = appts[i].startSlot - (appts[i - 1].startSlot + appts[i - 1].slotCount);
+      if (gap > 0) deadSlots += gap;
+    }
+  }
+
+  const usedDays = byDay.size;
+  const util      = totalSlots / (usedDays * 16);
+  const reduction = (5 - usedDays) / 4;
+  const compact   = 1 - deadSlots / (usedDays * 16);
+
+  const u = parseFloat((0.5 * util).toFixed(4));
+  const r = parseFloat((0.3 * reduction).toFixed(4));
+  const c = parseFloat((0.2 * compact).toFixed(4));
+  return { total: parseFloat((u + r + c).toFixed(4)), util: u, reduction: r, compactness: c };
+}
 
 const sectionTitle = {
   fontSize: '8px',
@@ -50,6 +102,8 @@ export function OptimizerPanel({
   const [refreshing, setRefreshing] = useState(false);
   const [activeVersion, setActiveVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const currentFitness = useMemo(() => computeCurrentFitness(appointments), [appointments]);
 
   async function runOptimizer() {
     setRunning(true);
@@ -96,7 +150,11 @@ export function OptimizerPanel({
     setTimeout(() => setRefreshing(false), 800);
   }
 
-  const fitnessDisplay = fitness !== null ? `${(fitness * 100).toFixed(1)}%` : '—';
+  const isProposed = fitness !== null;
+  const displayFitness = isProposed ? fitness! : currentFitness.total;
+  const displayUtil        = isProposed ? fitnessUtil!        : currentFitness.util;
+  const displayReduction   = isProposed ? fitnessReduction!   : currentFitness.reduction;
+  const displayCompactness = isProposed ? fitnessCompactness! : currentFitness.compactness;
   const movedCount = proposedSchedule?.length ?? 0;
 
   return (
@@ -104,22 +162,34 @@ export function OptimizerPanel({
 
       {/* Fitness */}
       <div className="mb-6">
-        <p style={sectionTitle} className="mb-3">EFICIENCIA DE APTITUD (FITNESS)</p>
+        <div className="flex items-center gap-2 mb-3">
+          <p style={sectionTitle}>EFICIENCIA DE APTITUD (FITNESS)</p>
+          <span
+            className="text-[7px] tracking-[0.2em] px-1.5 py-0.5"
+            style={{
+              backgroundColor: isProposed ? 'rgba(201,168,76,0.12)' : 'rgba(138,122,106,0.1)',
+              color: isProposed ? 'var(--gold)' : 'var(--muted)',
+              border: `1px solid ${isProposed ? 'rgba(201,168,76,0.3)' : 'rgba(138,122,106,0.2)'}`,
+            }}
+          >
+            {isProposed ? 'PROPUESTA' : 'ACTUAL'}
+          </span>
+        </div>
         <p
           className="text-5xl font-light tracking-tight"
           style={{
-            color: fitness !== null ? 'var(--gold)' : 'var(--border)',
+            color: 'var(--gold)',
             fontFamily: 'var(--font-cormorant, serif)',
           }}
         >
-          {fitnessDisplay}
+          {`${(displayFitness * 100).toFixed(1)}%`}
         </p>
-        {fitness !== null && fitnessUtil !== null && fitnessReduction !== null && fitnessCompactness !== null && (
+        {currentFitness.total > 0 && (
           <div className="mt-4 flex flex-col gap-2">
             {[
-              { label: 'Utilización',  value: fitnessUtil,        weight: '×0.5', maxWeight: 0.5, title: 'Qué tan llenos están los días ocupados' },
-              { label: 'Días libres',  value: fitnessReduction,   weight: '×0.3', maxWeight: 0.3, title: 'Cuántos días quedan sin turnos' },
-              { label: 'Compactación', value: fitnessCompactness, weight: '×0.2', maxWeight: 0.2, title: 'Sin espacios muertos entre turnos' },
+              { label: 'Utilización',  value: displayUtil,        weight: '×0.5', maxWeight: 0.5, title: 'Qué tan llenos están los días ocupados' },
+              { label: 'Días libres',  value: displayReduction,   weight: '×0.3', maxWeight: 0.3, title: 'Cuántos días quedan sin turnos' },
+              { label: 'Compactación', value: displayCompactness, weight: '×0.2', maxWeight: 0.2, title: 'Sin espacios muertos entre turnos' },
             ].map(({ label, value, weight, maxWeight, title }) => (
               <div key={label} title={title}>
                 <div className="flex justify-between items-baseline mb-1">
