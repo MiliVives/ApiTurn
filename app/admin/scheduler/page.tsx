@@ -38,11 +38,14 @@ export default async function SchedulerPage({
   const nextWeek = new Date(weekStart);
   nextWeek.setDate(weekStart.getDate() + 7);
 
-  const appointments = await prisma.appointment.findMany({
-    where: { scheduledAt: { gte: weekStart, lt: weekEnd } },
-    include: { user: true, service: true },
-    orderBy: { scheduledAt: 'asc' },
-  });
+  const [appointments, service] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { scheduledAt: { gte: weekStart, lt: weekEnd } },
+      include: { user: true, service: true },
+      orderBy: { scheduledAt: 'asc' },
+    }),
+    prisma.service.findFirst({ where: { isActive: true } }),
+  ]);
 
   const dateRangeLabel = `${weekStart.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} — ${new Date(weekEnd.getTime() - 86400000).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
 
@@ -97,12 +100,21 @@ export default async function SchedulerPage({
             userName: a.user.name,
             honeyVariety: a.honeyVariety ?? null,
             scheduledAt: a.scheduledAt.toISOString(),
+            createdAt: a.createdAt.toISOString(),
             urgencyLevel: a.urgencyLevel,
             quantity: a.quantity,
             durationMin: estimateDuration(a.quantity ?? 0),
+            frameCount1Half: a.frameCount1Half ?? null,
+            frameCount3Quarter: a.frameCount3Quarter ?? null,
+            frameCountStd: a.frameCountStd ?? null,
           }))}
           weekStartISO={weekStart.toISOString()}
           dayDates={dayDates}
+          serviceConfig={{
+            avgKgPer1HalfAlza:    service?.avgKgPer1HalfAlza    ?? null,
+            avgKgPer3QuarterAlza: service?.avgKgPer3QuarterAlza ?? null,
+            avgKgPerStdAlza:      service?.avgKgPerStdAlza      ?? null,
+          }}
         />
       </div>
     </div>

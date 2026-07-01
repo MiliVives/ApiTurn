@@ -98,9 +98,13 @@ export default async function WorkerSchedulePage({
             userName: a.user.name,
             honeyVariety: a.honeyVariety ?? null,
             scheduledAt: a.scheduledAt.toISOString(),
+            createdAt: a.createdAt.toISOString(),
             urgencyLevel: a.urgencyLevel,
             quantity: a.quantity,
             durationMin: estimateDuration(a.quantity ?? 0),
+            frameCount1Half: a.frameCount1Half ?? null,
+            frameCount3Quarter: a.frameCount3Quarter ?? null,
+            frameCountStd: a.frameCountStd ?? null,
           }))}
           proposedSchedule={null}
           dayDates={dayDates}

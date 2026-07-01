@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/app/lib/prisma';
 import { cormorant } from '@/app/ui/fonts';
-import { confirmAppointment, rescheduleAppointment, cancelAppointment } from '@/app/lib/actions';
+import { confirmAppointment, rescheduleAppointment, cancelAppointment, updateAppointmentFields } from '@/app/lib/actions';
 import { estimateCost } from '@/app/lib/pricing';
 import { formatDuration, estimateDurationFromFrames } from '@/app/lib/scheduling';
 import type { UrgencyLevel, AppointmentStatus } from '@/generated/prisma/client';
@@ -190,6 +190,46 @@ export default async function AppointmentDetailPage({ params }: { params: Promis
           </p>
         </div>
       )}
+
+      {/* Frame & weight data entry — always editable by admin */}
+      <div className="mb-6 border" style={{ borderColor: 'var(--border)' }}>
+        <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--border)', backgroundColor: '#faf8f4' }}>
+          <p className="text-[8px] tracking-[0.3em]" style={{ color: 'var(--muted)' }}>REGISTRO DE ALZAS Y PESOS</p>
+        </div>
+        <form action={updateAppointmentFields} className="px-5 py-4">
+          <input type="hidden" name="id" value={appt.id} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+            {([
+              { name: 'frameCount1Half',    label: 'ALZAS 1/2',   defaultValue: appt.frameCount1Half,    isInt: true },
+              { name: 'frameCount3Quarter', label: 'ALZAS 3/4',   defaultValue: appt.frameCount3Quarter, isInt: true },
+              { name: 'frameCountStd',      label: 'ALZAS STD',   defaultValue: appt.frameCountStd,      isInt: true },
+              { name: 'totalFilledKg',      label: 'KG LLENAS',   defaultValue: appt.totalFilledKg,      isInt: false },
+              { name: 'totalEmptyKg',       label: 'KG VACÍAS',   defaultValue: appt.totalEmptyKg,       isInt: false },
+            ] as const).map(({ name, label, defaultValue, isInt }) => (
+              <div key={name}>
+                <label className="block text-[7px] tracking-[0.25em] mb-1" style={{ color: 'var(--muted)' }}>{label}</label>
+                <input
+                  type="number"
+                  name={name}
+                  defaultValue={defaultValue ?? ''}
+                  min="0"
+                  step={isInt ? '1' : '0.1'}
+                  placeholder="—"
+                  className="w-full px-2 py-1.5 border text-[11px] font-light outline-none focus:border-[var(--gold)] transition-colors"
+                  style={{ borderColor: 'var(--border)', color: 'var(--dark)', backgroundColor: 'transparent' }}
+                />
+              </div>
+            ))}
+          </div>
+          <button
+            type="submit"
+            className="text-[8px] tracking-[0.3em] px-4 py-2 border transition-opacity hover:opacity-60"
+            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+          >
+            GUARDAR
+          </button>
+        </form>
+      </div>
 
       {/* Admin actions — only for pending appointments */}
       {isPending && (

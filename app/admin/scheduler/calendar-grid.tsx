@@ -15,9 +15,13 @@ export type ApptSummary = {
   userName: string;
   honeyVariety: string | null;
   scheduledAt: string;
+  createdAt: string;
   urgencyLevel: string;
   quantity: number | null;
   durationMin: number;
+  frameCount1Half: number | null;
+  frameCount3Quarter: number | null;
+  frameCountStd: number | null;
 };
 
 export type ProposedAppt = {

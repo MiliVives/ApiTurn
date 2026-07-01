@@ -370,7 +370,13 @@ def calculate_fitness(chromosome: Chromosome) -> Tuple[float, float, float, floa
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
-def optimize(appts: List[dict], week_start_iso: str) -> dict:
+def optimize(
+    appts: List[dict],
+    week_start_iso: str,
+    avg_kg_1half: float | None = None,
+    avg_kg_3quarter: float | None = None,
+    avg_kg_std: float | None = None,
+) -> dict:
     """
     V1: one horizontal crossover pass (P1=current schedule, P2=random).
     Returns the better of the two children as the proposed schedule.

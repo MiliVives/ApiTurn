@@ -10,6 +10,7 @@ const links = [
   { name: 'LOGÍSTICA', href: '/admin/logistics' },
   { name: 'GENÉTICA', href: '/admin/genetics' },
   { name: 'ANALÍTICA', href: '/admin/analytics' },
+  { name: 'SERVICIO', href: '/admin/service' },
 ];
 
 export default function NavLinks({ pendingCount }: { pendingCount: number }) {

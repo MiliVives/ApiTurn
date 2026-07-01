@@ -222,15 +222,24 @@ export async function updateProducerPriority(formData: FormData) {
 }
 
 export async function updateAppointmentFields(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+  const caller = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!caller || (caller.role !== 'ADMIN' && caller.role !== 'WORKER')) return;
+
   const id = formData.get('id') as string;
   const f1 = parseInt(formData.get('frameCount1Half')    as string, 10);
   const f3 = parseInt(formData.get('frameCount3Quarter') as string, 10);
   const fs = parseInt(formData.get('frameCountStd')      as string, 10);
+  const filledRaw = formData.get('totalFilledKg') as string;
+  const emptyRaw  = formData.get('totalEmptyKg')  as string;
 
   const frame1 = isNaN(f1) ? 0 : Math.max(0, f1);
   const frame3 = isNaN(f3) ? 0 : Math.max(0, f3);
   const frameS = isNaN(fs) ? 0 : Math.max(0, fs);
   const total  = frame1 + frame3 + frameS;
+  const filled = filledRaw !== '' && filledRaw !== null ? parseFloat(filledRaw) : null;
+  const empty  = emptyRaw  !== '' && emptyRaw  !== null ? parseFloat(emptyRaw)  : null;
 
   await prisma.appointment.update({
     where: { id },
@@ -239,10 +248,14 @@ export async function updateAppointmentFields(formData: FormData) {
       frameCount3Quarter: frame3 || null,
       frameCountStd:      frameS || null,
       quantity:           total  || null,
+      totalFilledKg:      filled !== null && !isNaN(filled) ? filled : undefined,
+      totalEmptyKg:       empty  !== null && !isNaN(empty)  ? empty  : undefined,
     },
   });
 
   revalidatePath('/admin/pending');
+  revalidatePath('/admin/appointments');
+  revalidatePath('/worker/active');
 }
 
 export async function applyOptimizedSchedule(
@@ -361,6 +374,37 @@ export async function updateAppointmentStatus(formData: FormData) {
 
   revalidatePath('/worker/active');
   revalidatePath(`/worker/appointments/${appointmentId}`);
+}
+
+// ─── Service Config ───────────────────────────────────────────────────────────
+
+export async function updateServiceConfig(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+  const caller = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!caller || caller.role !== 'ADMIN') return;
+
+  const id = formData.get('serviceId') as string;
+  const parseF = (key: string) => {
+    const v = (formData.get(key) as string ?? '').trim();
+    if (v === '') return null;
+    const n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
+
+  await prisma.service.update({
+    where: { id },
+    data: {
+      baseFeeARS:           parseF('baseFeeARS'),
+      perKgFeeARS:          parseF('perKgFeeARS'),
+      drumRentalFeeARS:     parseF('drumRentalFeeARS'),
+      avgKgPer1HalfAlza:    parseF('avgKgPer1HalfAlza'),
+      avgKgPer3QuarterAlza: parseF('avgKgPer3QuarterAlza'),
+      avgKgPerStdAlza:      parseF('avgKgPerStdAlza'),
+    },
+  });
+
+  revalidatePath('/admin/service');
 }
 
 export async function markNotificationRead(formData: FormData) {

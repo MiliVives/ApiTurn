@@ -36,11 +36,18 @@ class ApptInput(BaseModel):
     duration_min: int
     urgency: str = "STANDARD"
     scheduled_at: str | None = None  # ISO datetime — used to build Parent 1 from current schedule
+    created_at: str | None = None    # ISO datetime — appointment request date (for wait-time scoring)
+    frame_count_1half: int = 0
+    frame_count_3quarter: int = 0
+    frame_count_std: int = 0
 
 
 class GeneticRequest(BaseModel):
     appointments: list[ApptInput]
     week_start: str  # ISO datetime string (full, with timezone if available)
+    avg_kg_1half: float | None = None    # avg kg honey per filled 1/2 alza
+    avg_kg_3quarter: float | None = None
+    avg_kg_std: float | None = None
 
 
 class ProposedAppt(BaseModel):

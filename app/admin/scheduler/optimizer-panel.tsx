@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cormorant } from '@/app/ui/fonts';
 import type { ApptSummary, ProposedAppt } from './calendar-grid';
+import type { ServiceConfig } from './calendar-client';
 
 type Props = {
   appointments: ApptSummary[];
   weekStartISO: string;
+  serviceConfig: ServiceConfig;
   onResult: (proposed: ProposedAppt[], fitness: number, fitnessUtil: number, fitnessReduction: number, fitnessCompactness: number) => void;
   proposedSchedule: ProposedAppt[] | null;
   fitness: number | null;
@@ -32,6 +34,7 @@ const HEX_VERSIONS = ['V.1', 'V.2', 'V.3', 'V.4'];
 export function OptimizerPanel({
   appointments,
   weekStartISO,
+  serviceConfig,
   onResult,
   proposedSchedule,
   fitness,
@@ -66,8 +69,15 @@ export function OptimizerPanel({
             duration_min: a.durationMin,
             urgency: a.urgencyLevel,
             scheduled_at: a.scheduledAt,
+            created_at: a.createdAt,
+            frame_count_1half: a.frameCount1Half ?? 0,
+            frame_count_3quarter: a.frameCount3Quarter ?? 0,
+            frame_count_std: a.frameCountStd ?? 0,
           })),
           week_start: localWeekStart,
+          avg_kg_1half: serviceConfig.avgKgPer1HalfAlza,
+          avg_kg_3quarter: serviceConfig.avgKgPer3QuarterAlza,
+          avg_kg_std: serviceConfig.avgKgPerStdAlza,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

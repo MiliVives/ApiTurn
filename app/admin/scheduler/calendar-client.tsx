@@ -6,13 +6,20 @@ import { CalendarGrid, type ApptSummary, type ProposedAppt } from './calendar-gr
 import { OptimizerPanel } from './optimizer-panel';
 import { applyOptimizedSchedule } from '@/app/lib/actions';
 
+export type ServiceConfig = {
+  avgKgPer1HalfAlza: number | null;
+  avgKgPer3QuarterAlza: number | null;
+  avgKgPerStdAlza: number | null;
+};
+
 type Props = {
   appointments: ApptSummary[];
   weekStartISO: string;
   dayDates: string[];
+  serviceConfig: ServiceConfig;
 };
 
-export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) {
+export function CalendarClient({ appointments, weekStartISO, dayDates, serviceConfig }: Props) {
   const router = useRouter();
   const [liveAppointments, setLiveAppointments] = useState<ApptSummary[]>(appointments);
   const [proposed, setProposed] = useState<ProposedAppt[] | null>(null);
@@ -115,6 +122,7 @@ export function CalendarClient({ appointments, weekStartISO, dayDates }: Props) 
           <OptimizerPanel
             appointments={liveAppointments}
             weekStartISO={weekStartISO}
+            serviceConfig={serviceConfig}
             onResult={handleResult}
             proposedSchedule={proposed}
             fitness={fitness}

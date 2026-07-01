@@ -58,9 +58,12 @@ model Service {
   description  String?
   durationMin  Int           // minutes per appointment
   isActive     Boolean       @default(true)
-  baseFeeARS       Float?    // base service fee (ARS)
-  perKgFeeARS      Float?    // per-kg honey processing fee (ARS)
-  drumRentalFeeARS Float?    // per-drum rental fee when producer doesn't bring drums (ARS)
+  baseFeeARS           Float?    // base service fee (ARS)
+  perKgFeeARS          Float?    // per-kg honey processing fee (ARS)
+  drumRentalFeeARS     Float?    // per-drum rental fee when producer doesn't bring drums (ARS)
+  avgKgPer1HalfAlza    Float?    // avg kg of honey per filled 1/2 alza (for pre-extraction estimates)
+  avgKgPer3QuarterAlza Float?    // avg kg of honey per filled 3/4 alza
+  avgKgPerStdAlza      Float?    // avg kg of honey per filled std alza
   appointments Appointment[]
   schedules    Schedule[]
   createdAt    DateTime      @default(now())
