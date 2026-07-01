@@ -182,6 +182,15 @@ def compact_matrix(matrix: List[Row]) -> List[Tuple[str, int, int, int]]:
             continue
 
         if current_slots + slots > SLOTS_PER_DAY:
+            remaining_today = SLOTS_PER_DAY - current_slots
+            if remaining_today > 0:
+                fill_idx = next(
+                    (j for j, (_, s, _) in enumerate(pending) if s <= remaining_today),
+                    None,
+                )
+                if fill_idx is not None:
+                    pending.insert(0, pending.pop(fill_idx))
+                    continue
             current_day  += 1
             current_slots = 0
             if current_day >= NUM_DAYS:
