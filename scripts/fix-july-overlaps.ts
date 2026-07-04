@@ -8,7 +8,7 @@
  */
 
 import { config } from 'dotenv';
-config({ path: '.env.local' });
+config({ path: '.env' });
 
 // @ts-ignore
 import { PrismaClient } from '../generated/prisma/client';
@@ -42,7 +42,8 @@ async function main() {
     return;
   }
 
-  // CONFIRMED appointments get first priority; among PENDING, FIFO by createdAt.
+  // CONFIRMED keeps its slot; IN_PROGRESS and PENDING are rescheduled if they conflict.
+  // Sort: CONFIRMED first, then by createdAt.
   all.sort((a: { status: string; createdAt: Date }, b: { status: string; createdAt: Date }) => {
     if (a.status === 'CONFIRMED' && b.status !== 'CONFIRMED') return -1;
     if (b.status === 'CONFIRMED' && a.status !== 'CONFIRMED') return 1;
@@ -66,7 +67,7 @@ async function main() {
       continue;
     }
 
-    if (appt.status !== 'PENDING') {
+    if (appt.status === 'CONFIRMED') {
       console.warn(`  SKIP   ${label} — confirmed conflict, manual review needed`);
       resolved.push({ scheduledAt: appt.scheduledAt, quantity: appt.quantity });
       continue;

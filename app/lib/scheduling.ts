@@ -2,6 +2,8 @@ export const MINUTES_PER_ALZA = 5;
 export const BASE_DURATION_MIN = 60;
 export const WORK_START_HOUR = 9;
 export const WORK_END_HOUR = 18;
+export const LUNCH_START_HOUR = 12;
+export const LUNCH_END_HOUR = 13;
 
 export function estimateDuration(quantity: number): number {
   return BASE_DURATION_MIN + Math.max(0, quantity) * MINUTES_PER_ALZA;
@@ -27,8 +29,10 @@ export function findNextAvailableSlot(
   occupied: Array<{ scheduledAt: Date; quantity: number | null }>,
   maxDaysAhead = 14,
 ): Date {
-  const workStartUtcMin = (WORK_START_HOUR + ARG_OFFSET_H) * 60;
-  const workEndUtcMin   = (WORK_END_HOUR   + ARG_OFFSET_H) * 60;
+  const workStartUtcMin  = (WORK_START_HOUR  + ARG_OFFSET_H) * 60; // 720  (Arg 09:00)
+  const workEndUtcMin    = (WORK_END_HOUR    + ARG_OFFSET_H) * 60; // 1260 (Arg 18:00)
+  const lunchStartUtcMin = (LUNCH_START_HOUR + ARG_OFFSET_H) * 60; // 900  (Arg 12:00)
+  const lunchEndUtcMin   = (LUNCH_END_HOUR   + ARG_OFFSET_H) * 60; // 960  (Arg 13:00)
 
   const occupiedMs = occupied.map(o => ({
     start: o.scheduledAt.getTime(),
@@ -42,7 +46,9 @@ export function findNextAvailableSlot(
       after.getUTCDate() + d,
     );
 
-    const weekday = new Date(utcDayBase).toLocaleDateString('en-US', {
+    // Check weekday at work-start time, not UTC midnight — UTC midnight falls on
+    // the *previous* Argentine day (UTC-3: UTC 00:00 = Argentine 21:00 previous day).
+    const weekday = new Date(utcDayBase + workStartUtcMin * 60_000).toLocaleDateString('en-US', {
       timeZone: 'America/Argentina/Buenos_Aires',
       weekday: 'long',
     });
@@ -53,6 +59,12 @@ export function findNextAvailableSlot(
       if (candidateMs <= after.getTime()) continue;
 
       const endMs = candidateMs + durationMin * 60_000;
+
+      // Reject slots that overlap with the lunch break (Arg 12:00–13:00)
+      const lunchStartMs = utcDayBase + lunchStartUtcMin * 60_000;
+      const lunchEndMs   = utcDayBase + lunchEndUtcMin   * 60_000;
+      if (candidateMs < lunchEndMs && endMs > lunchStartMs) continue;
+
       const conflict = occupiedMs.some(o => candidateMs < o.end && endMs > o.start);
       if (!conflict) return new Date(candidateMs);
     }

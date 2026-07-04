@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { estimateDuration, WORK_START_HOUR, WORK_END_HOUR } from '@/app/lib/scheduling';
+import { estimateDuration, WORK_START_HOUR, WORK_END_HOUR, LUNCH_START_HOUR, LUNCH_END_HOUR } from '@/app/lib/scheduling';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -41,13 +41,16 @@ export async function GET(req: NextRequest) {
     return { start, end };
   });
 
-  const workStart = WORK_START_HOUR * 60;
-  const workEnd   = WORK_END_HOUR   * 60;
+  const workStart  = WORK_START_HOUR  * 60;
+  const workEnd    = WORK_END_HOUR    * 60;
+  const lunchStart = LUNCH_START_HOUR * 60;
+  const lunchEnd   = LUNCH_END_HOUR   * 60;
 
   const slots: string[] = [];
   for (let start = workStart; start + durationMin <= workEnd; start += 60) {
     const end = start + durationMin;
-    const conflict = occupied.some(o => start < o.end && end > o.start);
+    const overlapsLunch = start < lunchEnd && end > lunchStart;
+    const conflict = overlapsLunch || occupied.some(o => start < o.end && end > o.start);
     if (!conflict) {
       const hh = String(Math.floor(start / 60)).padStart(2, '0');
       const mm = String(start % 60).padStart(2, '0');
