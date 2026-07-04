@@ -23,13 +23,10 @@ function createClient() {
 const prisma = createClient();
 
 async function main() {
-  const users = await prisma.user.findMany({
-    where: { renapaNumber: { not: null } },
-    take: 2,
-  });
+  const users = await prisma.user.findMany({ take: 2 });
 
   if (users.length < 2) {
-    console.error('Need at least 2 users with a RENAPA number. Add them first.');
+    console.error('Need at least 2 users in the DB. Sign in as two different accounts first.');
     process.exit(1);
   }
 
