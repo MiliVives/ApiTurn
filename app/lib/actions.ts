@@ -7,6 +7,7 @@ import { prisma } from '@/app/lib/prisma';
 import { UrgencyLevel, AppointmentStatus } from '@/generated/prisma/client';
 import { sendConfirmedEmail, sendRescheduledEmail, sendCancelledEmail } from '@/app/lib/email';
 import { generateNextLoteNumber, estimateCost } from '@/app/lib/pricing';
+import { estimateDuration, appointmentsOverlap } from '@/app/lib/scheduling';
 
 // ─── Client Actions ───────────────────────────────────────────────────────────
 
@@ -74,6 +75,19 @@ export async function confirmAppointment(formData: FormData) {
     include: { service: true },
   });
 
+  // Overlap guard: abort if a CONFIRMED appointment already occupies this slot.
+  const dur = estimateDuration(existing.quantity ?? 1);
+  const dayStart = new Date(existing.scheduledAt); dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd   = new Date(existing.scheduledAt); dayEnd.setUTCHours(23, 59, 59, 999);
+  const sameDay = await prisma.appointment.findMany({
+    where: { status: 'CONFIRMED', scheduledAt: { gte: dayStart, lte: dayEnd }, id: { not: id } },
+    select: { scheduledAt: true, quantity: true },
+  });
+  const blocked = sameDay.some(c =>
+    appointmentsOverlap(existing.scheduledAt, dur, c.scheduledAt, estimateDuration(c.quantity ?? 1))
+  );
+  if (blocked) { revalidatePath('/admin/pending'); return; }
+
   const lastLote = await prisma.appointment.findFirst({
     where: { loteNumber: { not: null } },
     orderBy: { loteDate: 'desc' },
@@ -121,6 +135,19 @@ export async function rescheduleAppointment(formData: FormData) {
     where: { id },
     include: { service: true },
   });
+
+  // Overlap guard: abort if a CONFIRMED appointment already occupies the new slot.
+  const rDur = estimateDuration(existing.quantity ?? 1);
+  const rDayStart = new Date(newDate); rDayStart.setUTCHours(0, 0, 0, 0);
+  const rDayEnd   = new Date(newDate); rDayEnd.setUTCHours(23, 59, 59, 999);
+  const rSameDay = await prisma.appointment.findMany({
+    where: { status: 'CONFIRMED', scheduledAt: { gte: rDayStart, lte: rDayEnd }, id: { not: id } },
+    select: { scheduledAt: true, quantity: true },
+  });
+  const rBlocked = rSameDay.some(c =>
+    appointmentsOverlap(newDate, rDur, c.scheduledAt, estimateDuration(c.quantity ?? 1))
+  );
+  if (rBlocked) { revalidatePath('/admin/pending'); return; }
 
   // Assign lote # on first confirmation (reschedule also confirms)
   let loteFields: { loteNumber?: string; loteDate?: Date; estimatedCostARS?: number } = {};

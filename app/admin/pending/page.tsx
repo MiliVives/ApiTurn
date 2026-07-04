@@ -2,6 +2,7 @@ import { prisma } from '@/app/lib/prisma';
 import { cormorant } from '@/app/ui/fonts';
 import { confirmAppointment, rescheduleAppointment, cancelAppointment } from '@/app/lib/actions';
 import { estimateCost } from '@/app/lib/pricing';
+import { estimateDuration, appointmentsOverlap } from '@/app/lib/scheduling';
 import type { UrgencyLevel } from '@/generated/prisma/client';
 
 const URGENCY_LABELS: Record<UrgencyLevel, string> = {
@@ -22,6 +23,27 @@ export default async function PendingPage() {
     include: { user: true, service: true },
     orderBy: [{ urgencyLevel: 'asc' }, { createdAt: 'asc' }],
   });
+
+  // Detect which pending appointments conflict with an already-confirmed one.
+  const conflictingIds = new Set<string>();
+  if (pending.length > 0) {
+    const timestamps = pending.map(p => p.scheduledAt.getTime());
+    const rangeStart = new Date(Math.min(...timestamps) - 3 * 3_600_000);
+    const rangeEnd   = new Date(Math.max(...timestamps) + 6 * 3_600_000);
+    const confirmed  = await prisma.appointment.findMany({
+      where: { status: 'CONFIRMED', scheduledAt: { gte: rangeStart, lte: rangeEnd } },
+      select: { scheduledAt: true, quantity: true },
+    });
+    for (const p of pending) {
+      const pDur = estimateDuration(p.quantity ?? 1);
+      for (const c of confirmed) {
+        if (appointmentsOverlap(p.scheduledAt, pDur, c.scheduledAt, estimateDuration(c.quantity ?? 1))) {
+          conflictingIds.add(p.id);
+          break;
+        }
+      }
+    }
+  }
 
   return (
     <div className="p-8 md:p-10">
@@ -167,19 +189,35 @@ export default async function PendingPage() {
                   </p>
                 )}
 
+                {/* Conflict warning */}
+                {conflictingIds.has(appt.id) && (
+                  <div
+                    className="mb-4 px-4 py-3 text-[9px] tracking-[0.2em] leading-relaxed"
+                    style={{
+                      backgroundColor: 'rgba(192,57,43,0.06)',
+                      border: '1px solid rgba(192,57,43,0.3)',
+                      color: '#c0392b',
+                    }}
+                  >
+                    CONFLICTO — Este turno solapa con uno ya confirmado. Reprogramar antes de confirmar.
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="flex flex-wrap gap-3 items-end border-t pt-4" style={{ borderColor: 'var(--border)' }}>
-                  {/* Confirm */}
-                  <form action={confirmAppointment}>
-                    <input type="hidden" name="id" value={appt.id} />
-                    <button
-                      type="submit"
-                      className="text-[9px] tracking-[0.3em] px-4 py-2 transition-opacity hover:opacity-80"
-                      style={{ backgroundColor: 'var(--dark)', color: 'var(--gold)' }}
-                    >
-                      CONFIRMAR
-                    </button>
-                  </form>
+                  {/* Confirm — hidden when there is a scheduling conflict */}
+                  {!conflictingIds.has(appt.id) && (
+                    <form action={confirmAppointment}>
+                      <input type="hidden" name="id" value={appt.id} />
+                      <button
+                        type="submit"
+                        className="text-[9px] tracking-[0.3em] px-4 py-2 transition-opacity hover:opacity-80"
+                        style={{ backgroundColor: 'var(--dark)', color: 'var(--gold)' }}
+                      >
+                        CONFIRMAR
+                      </button>
+                    </form>
+                  )}
 
                   {/* Reschedule */}
                   <form action={rescheduleAppointment} className="flex items-center gap-2">

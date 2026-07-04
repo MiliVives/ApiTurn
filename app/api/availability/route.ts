@@ -15,19 +15,28 @@ export async function GET(req: NextRequest) {
   const dayStart = new Date(dateParam + 'T00:00:00.000Z');
   const dayEnd   = new Date(dateParam + 'T23:59:59.999Z');
 
+  // Only confirmed (or active) appointments block new bookings.
+  // PENDING appointments do NOT block — multiple clients may compete for a slot;
+  // the admin resolves conflicts on the pending list.
   const existing = await prisma.appointment.findMany({
     where: {
       scheduledAt: { gte: dayStart, lte: dayEnd },
-      status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] },
+      status: { in: ['CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS'] },
     },
     select: { scheduledAt: true, quantity: true },
   });
 
-  // Convert existing appointments to occupied minute-ranges (local time relative to midnight)
+  // Convert each appointment to occupied minute-ranges in Argentine local time
+  // so they align with the Argentine work-hour slot loop below.
   const occupied = existing.map(a => {
-    const h = a.scheduledAt.getUTCHours();
-    const m = a.scheduledAt.getUTCMinutes();
-    const start = h * 60 + m;
+    const localStr = a.scheduledAt.toLocaleString('en-US', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const [lh, lm] = localStr.split(':').map(Number);
+    const start = lh * 60 + lm;
     const end = start + estimateDuration(a.quantity ?? 1);
     return { start, end };
   });

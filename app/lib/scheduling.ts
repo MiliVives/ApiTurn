@@ -11,6 +11,12 @@ export function estimateDurationFromFrames(f1: number, f3: number, fStd: number)
   return estimateDuration((f1 ?? 0) + (f3 ?? 0) + (fStd ?? 0));
 }
 
+export function appointmentsOverlap(at1: Date, dur1Min: number, at2: Date, dur2Min: number): boolean {
+  const end1 = at1.getTime() + dur1Min * 60_000;
+  const end2 = at2.getTime() + dur2Min * 60_000;
+  return at1.getTime() < end2 && end1 > at2.getTime();
+}
+
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
