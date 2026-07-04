@@ -2,7 +2,7 @@ import { prisma } from '@/app/lib/prisma';
 import { cormorant } from '@/app/ui/fonts';
 import { confirmAppointment, rescheduleAppointment, cancelAppointment } from '@/app/lib/actions';
 import { estimateCost } from '@/app/lib/pricing';
-import { estimateDuration, appointmentsOverlap } from '@/app/lib/scheduling';
+import { estimateDuration, appointmentsOverlap, findNextAvailableSlot } from '@/app/lib/scheduling';
 import type { UrgencyLevel } from '@/generated/prisma/client';
 
 const URGENCY_LABELS: Record<UrgencyLevel, string> = {
@@ -24,24 +24,40 @@ export default async function PendingPage() {
     orderBy: [{ urgencyLevel: 'asc' }, { createdAt: 'asc' }],
   });
 
-  // Detect which pending appointments conflict with an already-confirmed one.
-  const conflictingIds = new Set<string>();
+  // Detect which pending appointments conflict with an already-confirmed one,
+  // and compute a viable reschedule suggestion for each conflicting appointment.
+  const conflictingIds  = new Set<string>();
+  const suggestedSlots  = new Map<string, Date>();
+  let   confirmedAppts: Array<{ scheduledAt: Date; quantity: number | null }> = [];
+
   if (pending.length > 0) {
     const timestamps = pending.map(p => p.scheduledAt.getTime());
     const rangeStart = new Date(Math.min(...timestamps) - 3 * 3_600_000);
     const rangeEnd   = new Date(Math.max(...timestamps) + 6 * 3_600_000);
-    const confirmed  = await prisma.appointment.findMany({
+    confirmedAppts   = await prisma.appointment.findMany({
       where: { status: 'CONFIRMED', scheduledAt: { gte: rangeStart, lte: rangeEnd } },
       select: { scheduledAt: true, quantity: true },
     });
+
     for (const p of pending) {
       const pDur = estimateDuration(p.quantity ?? 1);
-      for (const c of confirmed) {
+      for (const c of confirmedAppts) {
         if (appointmentsOverlap(p.scheduledAt, pDur, c.scheduledAt, estimateDuration(c.quantity ?? 1))) {
           conflictingIds.add(p.id);
           break;
         }
       }
+    }
+
+    // Compute a unique viable slot for each conflicting appointment.
+    // virtualOccupied grows as we assign suggestions so no two get the same slot.
+    const virtualOccupied = [...confirmedAppts];
+    for (const p of pending) {
+      if (!conflictingIds.has(p.id)) continue;
+      const dur       = estimateDuration(p.quantity ?? 1);
+      const suggested = findNextAvailableSlot(p.scheduledAt, dur, virtualOccupied);
+      suggestedSlots.set(p.id, suggested);
+      virtualOccupied.push({ scheduledAt: suggested, quantity: p.quantity });
     }
   }
 
@@ -226,7 +242,7 @@ export default async function PendingPage() {
                       type="datetime-local"
                       name="newDate"
                       required
-                      defaultValue={appt.scheduledAt.toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(' ', 'T').slice(0, 16)}
+                      defaultValue={(suggestedSlots.get(appt.id) ?? appt.scheduledAt).toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(' ', 'T').slice(0, 16)}
                       className="text-[9px] px-2 py-2 border outline-none"
                       style={{ borderColor: 'var(--border)', color: 'var(--dark)', backgroundColor: 'transparent' }}
                     />
