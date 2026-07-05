@@ -20,9 +20,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    let detail: unknown;
+    try {
+      detail = await res.json();
+    } catch {
+      detail = { message: await res.text().catch(() => '') };
+    }
     return NextResponse.json(
-      { error: `El optimizador respondió con error ${res.status}.`, detail: text },
+      { error: 'optimizer_error', status: res.status, detail },
       { status: res.status },
     );
   }
@@ -30,6 +35,7 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   const normalized = {
     ...data,
+    overflow_count: data.overflow_count ?? 0,
     proposed: (data.proposed ?? []).map((p: { id: string; suggested_date: string }) => ({
       id: p.id,
       suggestedDate: p.suggested_date,

@@ -102,12 +102,15 @@ export function OptimizerPanel({
   const [refreshing, setRefreshing] = useState(false);
   const [activeVersion, setActiveVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<{ title: string; detail: string } | null>(null);
+  const [overflowCount, setOverflowCount] = useState<number>(0);
 
   const currentFitness = useMemo(() => computeCurrentFitness(appointments), [appointments]);
 
   async function runOptimizer() {
     setRunning(true);
     setError(null);
+    setApiError(null);
     try {
       // Server weekStartISO is UTC midnight; optimizer must start from LOCAL midnight so
       // its "+9h" lands at 09:00 local, matching how appointments are stored (local→UTC).
@@ -134,11 +137,35 @@ export function OptimizerPanel({
           avg_kg_std: serviceConfig.avgKgPerStdAlza,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      if (!res.ok) {
+        type ErrBody = { detail?: { message?: string } };
+        const errData = await res.json().catch(() => ({}) as ErrBody) as ErrBody;
+        let title = `Error ${res.status}`;
+        let detail = 'El optimizador encontró un error inesperado. Contacta al administrador si el problema persiste.';
+        if (res.status === 503) {
+          title = 'Servicio no disponible';
+          detail = 'No se pudo conectar con el servicio de optimización. Verifica que el servicio esté activo e intenta de nuevo.';
+        } else if (res.status === 400) {
+          title = 'Fecha inválida en el cronograma';
+          const msg = errData?.detail?.message ?? '';
+          detail = `Una o más fechas tienen formato incorrecto${msg ? ': ' + msg : ''}. Revisá los datos del cronograma antes de continuar.`;
+        } else if (res.status === 422) {
+          title = 'Datos de turnos inválidos';
+          detail = 'El servicio rechazó los datos enviados. Revisá que todos los turnos tengan los campos requeridos.';
+        }
+        setApiError({ title, detail });
+        return;
+      }
+
       const data = await res.json();
+      setOverflowCount(data.overflow_count ?? 0);
       onResult(data.proposed ?? [], data.fitness ?? 0, data.fitness_util ?? 0, data.fitness_reduction ?? 0, data.fitness_compactness ?? 0);
     } catch {
-      setError('No se pudo conectar con el servicio de optimización.');
+      setApiError({
+        title: 'Sin conexión',
+        detail: 'No se pudo comunicar con el servicio de optimización. Verificá tu conexión y que el servicio esté activo.',
+      });
     } finally {
       setRunning(false);
     }
@@ -158,6 +185,75 @@ export function OptimizerPanel({
   const movedCount = proposedSchedule?.length ?? 0;
 
   return (
+    <>
+    {/* Blocking error modal */}
+    {apiError && (
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          backgroundColor: 'rgba(26,18,8,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(3px)',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: 'var(--cream)',
+            border: '1px solid var(--border)',
+            maxWidth: '400px', width: '90%',
+            padding: '36px 32px',
+          }}
+        >
+          <div
+            style={{
+              width: '32px', height: '32px',
+              backgroundColor: 'rgba(201,168,76,0.1)',
+              border: '1px solid rgba(201,168,76,0.35)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginBottom: '20px',
+              fontSize: '15px', fontWeight: 600, color: 'var(--gold)',
+            }}
+          >
+            !
+          </div>
+          <p
+            className={cormorant.className}
+            style={{ fontSize: '20px', color: 'var(--dark)', marginBottom: '10px', fontWeight: 500 }}
+          >
+            {apiError.title}
+          </p>
+          <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.75, marginBottom: '28px' }}>
+            {apiError.detail}
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => { setApiError(null); void runOptimizer(); }}
+              className="transition-opacity hover:opacity-80"
+              style={{
+                flex: 1, padding: '11px 0',
+                fontSize: '9px', letterSpacing: '0.35em',
+                backgroundColor: 'var(--dark)', color: 'var(--gold)',
+                border: 'none', cursor: 'pointer',
+              }}
+            >
+              REINTENTAR
+            </button>
+            <button
+              onClick={() => setApiError(null)}
+              className="transition-opacity hover:opacity-60"
+              style={{
+                padding: '11px 16px',
+                fontSize: '9px', letterSpacing: '0.3em',
+                backgroundColor: 'transparent', color: 'var(--muted)',
+                border: '1px solid var(--border)', cursor: 'pointer',
+              }}
+            >
+              CERRAR
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="flex flex-col h-full p-6 overflow-y-auto" style={{ backgroundColor: '#faf8f4' }}>
 
       {/* Fitness */}
@@ -288,9 +384,15 @@ export function OptimizerPanel({
       {proposedSchedule && (
         <>
           <div className="border-t mb-4" style={{ borderColor: 'var(--border)' }} />
-          <p className={`${cormorant.className} text-sm italic mb-4 leading-relaxed`} style={{ color: 'var(--muted)' }}>
+          <p className={`${cormorant.className} text-sm italic mb-1 leading-relaxed`} style={{ color: 'var(--muted)' }}>
             {movedCount} turno{movedCount !== 1 ? 's' : ''} reubicado{movedCount !== 1 ? 's' : ''} en el calendario propuesto.
           </p>
+          {overflowCount > 0 && (
+            <p className="text-[10px] mb-4 leading-relaxed" style={{ color: 'var(--gold)' }}>
+              {overflowCount} turno{overflowCount !== 1 ? 's' : ''} programado{overflowCount !== 1 ? 's' : ''} en semana{overflowCount !== 1 ? 's' : ''} siguiente{overflowCount !== 1 ? 's' : ''} por capacidad semanal llena.
+            </p>
+          )}
+          {overflowCount === 0 && <div className="mb-4" />}
         </>
       )}
 
@@ -334,5 +436,6 @@ export function OptimizerPanel({
         </button>
       </div>
     </div>
+    </>
   );
 }

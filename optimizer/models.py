@@ -62,3 +62,4 @@ class GeneticResponse(BaseModel):
     fitness_reduction: float = 0.0
     fitness_compactness: float = 0.0
     generations: int
+    overflow_count: int = 0  # appointments scheduled into future weeks due to 80-slot weekly cap

@@ -368,6 +368,49 @@ def calculate_fitness(chromosome: Chromosome) -> Tuple[float, float, float, floa
     return round(util_comp + red_comp + compact_comp, 4), util_comp, red_comp, compact_comp
 
 
+# ─── Overflow scheduler ───────────────────────────────────────────────────────
+
+def schedule_overflow(appts: List[dict], next_week_start: datetime) -> List[dict]:
+    """
+    Greedily pack overflow appointments into the next week(s), respecting the
+    lunch break and the 16-slot daily limit. Moves to the next week whenever the
+    current week's Mon–Fri is exhausted.
+    """
+    result: List[dict] = []
+    week_offset = 0
+    day   = 0
+    slot  = 0
+
+    for a in appts:
+        slots = appt_to_slots(a["duration_min"])
+
+        while True:
+            if day >= NUM_DAYS:
+                week_offset += 1
+                day  = 0
+                slot = 0
+
+            remaining_morning = max(0, LUNCH_START_SLOT - slot)
+            if 0 < remaining_morning < slots:
+                slot = LUNCH_START_SLOT
+                continue
+
+            if slot + slots <= SLOTS_PER_DAY:
+                break
+
+            day  += 1
+            slot  = 0
+
+        week_base = next_week_start + timedelta(weeks=week_offset)
+        day_base  = week_base + timedelta(days=day)
+        start_min = slot_to_minutes(slot)
+        appt_time = day_base + timedelta(minutes=start_min)
+        result.append({"id": a["id"], "suggested_date": appt_time.isoformat()})
+        slot += slots
+
+    return result
+
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 def optimize(
@@ -379,22 +422,26 @@ def optimize(
 ) -> dict:
     """
     V1: one horizontal crossover pass (P1=current schedule, P2=random).
-    Returns the better of the two children as the proposed schedule.
+    Appointments that exceed the 80-slot weekly capacity are scheduled into
+    subsequent weeks rather than discarded.
     """
     if not appts:
-        return {"proposed": [], "fitness": 0.0, "fitness_util": 0.0, "fitness_reduction": 0.0, "fitness_compactness": 0.0, "generations": 0}
+        return {"proposed": [], "fitness": 0.0, "fitness_util": 0.0, "fitness_reduction": 0.0, "fitness_compactness": 0.0, "generations": 0, "overflow_count": 0}
 
-    # Cap to 80 slots (5 days × 16) — more appointments than this can't be compacted
+    # Partition: current week (≤80 slots) + overflow for subsequent weeks
+    overflow_appts: List[dict] = []
     total_slots = sum(appt_to_slots(a["duration_min"]) for a in appts)
     if total_slots > NUM_DAYS * SLOTS_PER_DAY:
         by_time = sorted(appts, key=lambda a: a.get("scheduled_at", ""))
-        budget, used, capped = NUM_DAYS * SLOTS_PER_DAY, 0, []
+        budget, used, this_week = NUM_DAYS * SLOTS_PER_DAY, 0, []
         for a in by_time:
             s = appt_to_slots(a["duration_min"])
             if used + s <= budget:
-                capped.append(a)
+                this_week.append(a)
                 used += s
-        appts = capped
+            else:
+                overflow_appts.append(a)
+        appts = this_week
 
     # Build parents
     parent1, index_map = build_chromosome_from_current(appts, week_start_iso)
@@ -428,6 +475,11 @@ def optimize(
         best, best_fitness, best_util, best_red, best_comp = child2, f2, f2_util, f2_red, f2_comp
 
     proposed = chromosome_to_schedule(best, index_map, week_start_iso)
+
+    if overflow_appts:
+        next_week = _parse_dt(week_start_iso) + timedelta(weeks=1)
+        proposed += schedule_overflow(overflow_appts, next_week)
+
     return {
         "proposed":            proposed,
         "fitness":             best_fitness,
@@ -435,4 +487,5 @@ def optimize(
         "fitness_reduction":   best_red,
         "fitness_compactness": best_comp,
         "generations":         1,
+        "overflow_count":      len(overflow_appts),
     }
